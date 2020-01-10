@@ -7,7 +7,7 @@
 
 Name:           perl
 Version:        %{perl_version}
-Release:        141%{?dist}.1
+Release:        144%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -242,8 +242,17 @@ Patch210:       perl-5.10.1-Skip-pax-extended-headers.patch
 # Fix possible crash on uninitialized Digest::SHA object, fixed in 5.87,
 # bug #1189041, RT#121421
 Patch211:       perl-5.10.1-Digest-SHA-Check-for-ISA-when-invoking-methods.patch
-# Fix CRLF conversion in ASCII FTP upload, bug #1267920, CPAN RT#41642
+# Fix CRLF conversion in ASCII FTP upload, bug #1263378, CPAN RT#41642
 Patch212:       perl-5.10.1-Fix-incorrect-handling-of-CRLF-in-Net-FTP.patch
+# Fix typo in name of the signal PIPE in IPC::Cmd, bug #1315053, CPAN RT#65276
+Patch213:        perl-5.10.1-Fix-typo-in-name-of-signal-PIPE.patch
+# Fix crash in httpd mod_perl Perl_sv_pvn_force_flags, bug #1364206
+Patch214:       perl-5.10.1-BZ1364206-Fix-crash-in-httpd-mod_perl.patch
+# Fix duplicating PerlIO::encoding when spawning threads, bug #1390907,
+# RT#31923, in upstream after 5.23.3
+Patch215:       perl-5.10.1-Properly-duplicate-PerlIO-encoding-objects.patch
+
+
 
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildRequires:  tcsh, dos2unix, man, groff
@@ -1134,6 +1143,9 @@ upstream tarball from perl.org.
 %patch210 -p1
 %patch211 -p1
 %patch212 -p1
+%patch213 -p1
+%patch214 -p1
+%patch215 -p1
 
 #
 # Candidates for doc recoding (need case by case review):
@@ -1416,6 +1428,8 @@ pushd %{build_archlib}/CORE/
        'RHEL Patch210: Do not save PAX headers into PaxHeader subdirectories by Archive::Tar (CPAN RT#64038)' \
        'RHEL Patch211: Fix possible crash on uninitialized Digest::SHA object (RT#121421)' \
        'RHEL Patch212: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
+       'RHEL Patch213: Fix typo in name of the signal PIPE in IPC::Cmd (CPAN RT#65276)' \
+       'RHEL Patch214: Fix crash in httpd mod_perl Perl_sv_pvn_force_flags' \
        %{nil}
 
 rm patchlevel.bak
@@ -2140,8 +2154,15 @@ make test
 
 # Old changelog entries are preserved in CVS.
 %changelog
-* Wed Sep 16 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-141.1
-- Fix CRLF conversion in ASCII FTP upload (bug #1267920)
+* Thu Nov 03 2016 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-144
+- Fix duplicating PerlIO::encoding when spawning threads (bug #1390907)
+
+* Wed Sep 07 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.10.1-143
+- Fix typo in name of the signal PIPE in IPC::Cmd (bug #1315053)
+- Fix crash in httpd mod_perl Perl_sv_pvn_force_flags (bug #1364206)
+
+* Wed Sep 16 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-142
+- Fix CRLF conversion in ASCII FTP upload (bug #1263378)
 
 * Fri Mar 13 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-141
 - Enable tests on s390, s390x, and ppc64 (bug #1201191)
