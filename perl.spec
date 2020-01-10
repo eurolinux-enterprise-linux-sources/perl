@@ -7,7 +7,7 @@
 
 Name:           perl
 Version:        %{perl_version}
-Release:        136%{?dist}
+Release:        136%{?dist}.1
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -229,6 +229,8 @@ Patch205:       perl-5.10.1-Override-the-Pod-Simple-parse_file.patch
 # Make non-option handler for Getopt::Long::GetOptions() compatible with
 # XML::Simple, bug #973022, fixed in Getopt-Long-2.39
 Patch206:       perl-5.10.1-Do-not-pass-non-option-argument-as-an-object-to-the-.patch
+# Make *DBM_File desctructors thread-safe, bug #1161103, RT#61912
+Patch207:       perl-5.10.1-Destroy-GDBM-NDBM-ODBM-SDBM-_File-objects-only-from-.patch
 
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildRequires:  tcsh, dos2unix, man, groff
@@ -1110,6 +1112,7 @@ upstream tarball from perl.org.
 %patch204 -p1
 %patch205 -p1
 %patch206 -p1
+%patch207 -p1
 
 #
 # Candidates for doc recoding (need case by case review):
@@ -1386,6 +1389,7 @@ pushd %{build_archlib}/CORE/
        'RHEL Patch204: Fix CVE-2012-6329 code execution via Locale::Maketext' \
        'RHEL Patch205: Set output for Pod::Man and Pod::Text parse_file() methods' \
        'RHEL Patch206: Make Getopt::Long::GetOptions() compatible with XML::Simple' \
+       'RHEL Patch207: Make *DBM_File desctructors thread-safe (RT#61912)' \
        %{nil}
 
 rm patchlevel.bak
@@ -2113,6 +2117,9 @@ make test
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Thu Nov 06 2014 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-136.1
+- Make *DBM_File desctructors thread-safe (bug #1161103)
+
 * Mon Aug 05 2013 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.10.1-136
 - Resolves: #991852 - Fix perl segfaults with custom signal handle
 
