@@ -7,7 +7,7 @@
 
 Name:           perl
 Version:        %{perl_version}
-Release:        136%{?dist}.1
+Release:        141%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -229,8 +229,19 @@ Patch205:       perl-5.10.1-Override-the-Pod-Simple-parse_file.patch
 # Make non-option handler for Getopt::Long::GetOptions() compatible with
 # XML::Simple, bug #973022, fixed in Getopt-Long-2.39
 Patch206:       perl-5.10.1-Do-not-pass-non-option-argument-as-an-object-to-the-.patch
-# Make *DBM_File desctructors thread-safe, bug #1161103, RT#61912
+# Make *DBM_File desctructors thread-safe, bug #1104827, RT#61912
 Patch207:       perl-5.10.1-Destroy-GDBM-NDBM-ODBM-SDBM-_File-objects-only-from-.patch
+# Fix backslash interpolation in Locale::Maketext, bug #1025906, RT#120457
+Patch208:       perl-5.10.1-Commit-1735f6f53ca19f99c6e9e39496c486af323ba6a8-star.patch
+# Do not ignore single-letter-named packages by Module::Plugable,
+# bug #1086215, CPAN RT#89680, fixed in Module-Pluggable-5.0
+Patch209:       perl-5.10.1-Allow-single-letter-package-names.patch
+# Do not save PAX headers into PaxHeader subdirectories by Archive::Tar,
+# bug #1184194, CPAN RT#64038, fixed in Archive-Tar-1.74
+Patch210:       perl-5.10.1-Skip-pax-extended-headers.patch
+# Fix possible crash on uninitialized Digest::SHA object, fixed in 5.87,
+# bug #1189041, RT#121421
+Patch211:       perl-5.10.1-Digest-SHA-Check-for-ISA-when-invoking-methods.patch
 
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildRequires:  tcsh, dos2unix, man, groff
@@ -369,6 +380,9 @@ Summary:        Suidperl, for use with setuid perl scripts
 Group:          Development/Languages
 License:        GPL+ or Artistic
 Requires:       perl = %{perl_epoch}:%{perl_version}-%{release}
+# Run-require exact version of perl-libs because it uses libperl.so from
+# there, bug #1161170
+Requires:       perl-libs = %{perl_epoch}:%{perl_version}-%{release}
 
 %description suidperl
 Suidperl is a setuid binary copy of perl that allows for (hopefully)
@@ -1113,6 +1127,10 @@ upstream tarball from perl.org.
 %patch205 -p1
 %patch206 -p1
 %patch207 -p1
+%patch208 -p1
+%patch209 -p1
+%patch210 -p1
+%patch211 -p1
 
 #
 # Candidates for doc recoding (need case by case review):
@@ -1390,6 +1408,10 @@ pushd %{build_archlib}/CORE/
        'RHEL Patch205: Set output for Pod::Man and Pod::Text parse_file() methods' \
        'RHEL Patch206: Make Getopt::Long::GetOptions() compatible with XML::Simple' \
        'RHEL Patch207: Make *DBM_File desctructors thread-safe (RT#61912)' \
+       'RHEL Patch208: Fix backslash interpolation in Locale::Maketext (RT#120457)' \
+       'RHEL Patch209: Do not ignore single-letter-named packages by Module::Plugable (CPAN RT#89680)' \
+       'RHEL Patch210: Do not save PAX headers into PaxHeader subdirectories by Archive::Tar (CPAN RT#64038)' \
+       'RHEL Patch211: Fix possible crash on uninitialized Digest::SHA object (RT#121421)' \
        %{nil}
 
 rm patchlevel.bak
@@ -1407,11 +1429,8 @@ rm -rf $RPM_BUILD_ROOT
 cp %{SOURCE4} lib/CGI/t/
 sed -i -e 's|\(t\/upload_post_text\.txt\)|../lib/CGI/\1|' lib/CGI/t/*.t
 # some updated modules check whether module is built from cpan or core
-%ifnarch ppc64 s390 s390x
-#ext/threads-shared/t/stress test fails on z10
 export PERL_CORE=1
 make test
-%endif
 
 %post libs -p /sbin/ldconfig
 
@@ -2117,8 +2136,23 @@ make test
 
 # Old changelog entries are preserved in CVS.
 %changelog
-* Thu Nov 06 2014 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-136.1
-- Make *DBM_File desctructors thread-safe (bug #1161103)
+* Fri Mar 13 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-141
+- Enable tests on s390, s390x, and ppc64 (bug #1201191)
+
+* Wed Feb 04 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-140
+- Fix possible crash on uninitialized Digest::SHA object (bug #1189041)
+
+* Wed Jan 21 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-139
+- Do not save PAX headers into PaxHeader subdirectories by Archive::Tar
+  (bug #1184194)
+
+* Wed Jan 07 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-138
+- Fix backslash interpolation in Locale::Maketext (bug #1025906)
+- Do not ignore single-letter-named packages by Module::Plugable (bug #1086215)
+- Run-require exact version of perl-libs by perl-suidperl (bug #1161170)
+
+* Thu Nov 06 2014 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-137
+- Make *DBM_File desctructors thread-safe (bug #1104827)
 
 * Mon Aug 05 2013 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.10.1-136
 - Resolves: #991852 - Fix perl segfaults with custom signal handle
