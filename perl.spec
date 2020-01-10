@@ -7,7 +7,7 @@
 
 Name:           perl
 Version:        %{perl_version}
-Release:        141%{?dist}
+Release:        141%{?dist}.1
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -242,6 +242,8 @@ Patch210:       perl-5.10.1-Skip-pax-extended-headers.patch
 # Fix possible crash on uninitialized Digest::SHA object, fixed in 5.87,
 # bug #1189041, RT#121421
 Patch211:       perl-5.10.1-Digest-SHA-Check-for-ISA-when-invoking-methods.patch
+# Fix CRLF conversion in ASCII FTP upload, bug #1267920, CPAN RT#41642
+Patch212:       perl-5.10.1-Fix-incorrect-handling-of-CRLF-in-Net-FTP.patch
 
 BuildRoot:      %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildRequires:  tcsh, dos2unix, man, groff
@@ -1131,6 +1133,7 @@ upstream tarball from perl.org.
 %patch209 -p1
 %patch210 -p1
 %patch211 -p1
+%patch212 -p1
 
 #
 # Candidates for doc recoding (need case by case review):
@@ -1412,6 +1415,7 @@ pushd %{build_archlib}/CORE/
        'RHEL Patch209: Do not ignore single-letter-named packages by Module::Plugable (CPAN RT#89680)' \
        'RHEL Patch210: Do not save PAX headers into PaxHeader subdirectories by Archive::Tar (CPAN RT#64038)' \
        'RHEL Patch211: Fix possible crash on uninitialized Digest::SHA object (RT#121421)' \
+       'RHEL Patch212: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
        %{nil}
 
 rm patchlevel.bak
@@ -2136,6 +2140,9 @@ make test
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Wed Sep 16 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-141.1
+- Fix CRLF conversion in ASCII FTP upload (bug #1267920)
+
 * Fri Mar 13 2015 Petr Pisar <ppisar@redhat.com> - 4:5.10.1-141
 - Enable tests on s390, s390x, and ppc64 (bug #1201191)
 
