@@ -31,7 +31,7 @@
 Name:           perl
 Version:        %{perl_version}
 # release number must be even higher, because dual-lived modules will be broken otherwise
-Release:        286%{?dist}
+Release:        291%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -151,6 +151,24 @@ Patch32:        perl-5.16.3-t-op-taint.t-Perform-SHA-256-algorithm-by-crypt-if-d
 # in upstream after 5.19.1
 Patch33:        perl-5.16.3-Benchmark.t-remove-CPU-speed-sensitive-test.patch
 
+# Make File::Glob work with threads again, bug #1223045
+# RT#119897, in upstream after 5.19.5
+Patch34:        perl-5.16.3-File-Glob-Dup-glob-state-in-CLONE.patch
+
+# Fix CRLF conversion in ASCII FTP upload, bug #1263734, CPAN RT#41642
+Patch35:        perl-5.16.3-Fix-incorrect-handling-of-CRLF-in-Net-FTP.patch
+
+# Don't leak the temp utf8 copy of namepv, bug #1063330, CPAN RT#123786
+Patch36:        perl-5.20.3-Don-t-leak-the-temp-utf8-copy-of-n.patch
+
+# Fix duplicating PerlIO::encoding when spawning threads, bug #1344749,
+# RT#31923, in upstream after 5.23.3
+Patch37:        perl-5.16.3-Properly-duplicate-PerlIO-encoding-objects.patch
+
+# Backported libraries historically supplied with Perl 4 from Perl 5.10.1.
+# It is used as a workaround before adding perl-Perl4-CoreLibs to RHEL 7
+Patch38:        Backport-Perl4-CoreLibs.patch
+
 # Update some of the bundled modules
 # see http://fedoraproject.org/wiki/Perl/perl.spec for instructions
 
@@ -183,42 +201,10 @@ Provides: perl(:WITH_LARGEFILES)
 # PerlIO provides
 Provides: perl(:WITH_PERLIO)
 # File provides
-Provides: perl(abbrev.pl)
-Provides: perl(assert.pl)
-Provides: perl(bigfloat.pl)
-Provides: perl(bigint.pl)
-Provides: perl(bigrat.pl)
 Provides: perl(bytes_heavy.pl)
-Provides: perl(cacheout.pl)
-Provides: perl(complete.pl)
-Provides: perl(ctime.pl)
-Provides: perl(dotsh.pl)
 Provides: perl(dumpvar.pl)
-Provides: perl(exceptions.pl)
-Provides: perl(fastcwd.pl)
-Provides: perl(find.pl)
-Provides: perl(finddepth.pl)
-Provides: perl(flush.pl)
-Provides: perl(ftp.pl)
-Provides: perl(getcwd.pl)
-Provides: perl(getopt.pl)
-Provides: perl(getopts.pl)
-Provides: perl(hostname.pl)
-Provides: perl(importenv.pl)
-Provides: perl(look.pl)
-Provides: perl(newgetopt.pl)
-Provides: perl(open2.pl)
-Provides: perl(open3.pl)
 Provides: perl(perl5db.pl)
-Provides: perl(pwd.pl)
-Provides: perl(shellwords.pl)
-Provides: perl(stat.pl)
-Provides: perl(syslog.pl)
-Provides: perl(tainted.pl)
-Provides: perl(termcap.pl)
-Provides: perl(timelocal.pl)
 Provides: perl(utf8_heavy.pl)
-Provides: perl(validate.pl)
 
 # suidperl isn't created by upstream since 5.12.0
 Obsoletes: perl-suidperl <= 4:5.12.2
@@ -1390,6 +1376,61 @@ Parse::CPAN::Meta is a parser for META.yml files, based on the parser half of
 YAML::Tiny.
 %endif
 
+%package Perl4-CoreLibs
+Summary:        Libraries historically supplied with Perl 4
+Version:        0.001
+Epoch:          0
+License:        GPL+ or Artistic
+Group:          Development/Libraries
+BuildArch:      noarch
+Requires:       %perl_compat
+Requires:       perl(File::Find)
+Requires:       perl(IPC::Open2)
+Requires:       perl(IPC::Open3)
+Requires:       perl(Socket)
+Requires:       perl(Text::ParseWords) >= 3.25
+Requires:       perl(Time::Local)
+Requires:       perl(warnings::register)
+Provides:       perl(abbrev.pl)
+Provides:       perl(assert.pl)
+Provides:       perl(bigfloat.pl)
+Provides:       perl(bigint.pl)
+Provides:       perl(bigrat.pl)
+Provides:       perl(cacheout.pl)
+Provides:       perl(complete.pl)
+Provides:       perl(ctime.pl)
+Provides:       perl(dotsh.pl)
+Provides:       perl(exceptions.pl)
+Provides:       perl(fastcwd.pl)
+Provides:       perl(find.pl)
+Provides:       perl(finddepth.pl)
+Provides:       perl(flush.pl)
+Provides:       perl(getcwd.pl)
+Provides:       perl(getopt.pl)
+Provides:       perl(getopts.pl)
+Provides:       perl(hostname.pl)
+Provides:       perl(importenv.pl)
+Provides:       perl(look.pl)
+Provides:       perl(newgetopt.pl)
+Provides:       perl(open2.pl)
+Provides:       perl(open3.pl)
+Provides:       perl(pwd.pl)
+Provides:       perl(shellwords.pl)
+Provides:       perl(stat.pl)
+Provides:       perl(syslog.pl)
+Provides:       perl(tainted.pl)
+Provides:       perl(termcap.pl)
+Provides:       perl(timelocal.pl)
+Provides:       perl(validate.pl)
+
+%description Perl4-CoreLibs
+This is a collection of .pl files that have historically been bundled with the
+Perl core and were removed from perl 5.16.  These files should not be used by
+new code.  Functionally, most have been directly superseded by modules in the
+Perl 5 style. This collection exists to support old Perl programs that
+predates satisfactory replacements.
+
+
 %if %{dual_life} || %{rebuild_from_scratch}
 %package Perl-OSType
 Summary:        Map Perl operating system names to generic types
@@ -1968,6 +2009,11 @@ tarball from perl.org.
 %patch31 -p1
 %patch32 -p1
 %patch33 -p1
+%patch34 -p1
+%patch35 -p1
+%patch36 -p1
+%patch37 -p1
+%patch38 -p1
 
 %if !%{defined perl_bootstrap}
 # Local patch tracking
@@ -2003,6 +2049,11 @@ perl -x patchlevel.h \
     'RHEL Patch31: Make *DBM_File desctructors thread-safe (RT#61912)' \
     'RHEL Patch32: Use stronger algorithm needed for FIPS in t/op/taint.t (RT#123338)' \
     'RHEL Patch33: Remove CPU-speed-sensitive test in Benchmark test' \
+    'RHEL Patch34: Make File::Glob work with threads again' \
+    'RHEL Patch35: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
+    'RHEL Patch36: Do not leak the temp utf8 copy of namepv (CPAN RT#123786)' \
+    'RHEL Patch37: Fix duplicating PerlIO::encoding when spawning threads (RT#31923)' \
+    'RHEL Patch38: Backported libraries historically supplied with Perl 4' \
     %{nil}
 %endif
 
@@ -2707,6 +2758,40 @@ sed \
 # Params-Check
 %exclude %{privlib}/Params/
 %exclude %{_mandir}/man3/Params::Check*
+
+# Perl4-CoreLibs
+%exclude %{privlib}/abbrev.pl
+%exclude %{privlib}/assert.pl
+%exclude %{privlib}/bigfloat.pl
+%exclude %{privlib}/bigint.pl
+%exclude %{privlib}/bigrat.pl
+%exclude %{privlib}/cacheout.pl
+%exclude %{privlib}/complete.pl
+%exclude %{privlib}/ctime.pl
+%exclude %{privlib}/dotsh.pl
+%exclude %{privlib}/exceptions.pl
+%exclude %{privlib}/fastcwd.pl
+%exclude %{privlib}/find.pl
+%exclude %{privlib}/finddepth.pl
+%exclude %{privlib}/flush.pl
+%exclude %{privlib}/getcwd.pl
+%exclude %{privlib}/getopt.pl
+%exclude %{privlib}/getopts.pl
+%exclude %{privlib}/hostname.pl
+%exclude %{privlib}/importenv.pl
+%exclude %{privlib}/look.pl
+%exclude %{privlib}/newgetopt.pl
+%exclude %{privlib}/open2.pl
+%exclude %{privlib}/open3.pl
+%exclude %{privlib}/pwd.pl
+%exclude %{privlib}/shellwords.pl
+%exclude %{privlib}/stat.pl
+%exclude %{privlib}/syslog.pl
+%exclude %{privlib}/tainted.pl
+%exclude %{privlib}/termcap.pl
+%exclude %{privlib}/timelocal.pl
+%exclude %{privlib}/validate.pl
+
 
 # Perl-OSType
 %exclude %{privlib}/Perl/OSType.pm
@@ -3443,6 +3528,39 @@ sed \
 %{_mandir}/man3/Parse::CPAN::Meta.3*
 %endif
 
+%files Perl4-CoreLibs
+%{privlib}/abbrev.pl
+%{privlib}/assert.pl
+%{privlib}/bigfloat.pl
+%{privlib}/bigint.pl
+%{privlib}/bigrat.pl
+%{privlib}/cacheout.pl
+%{privlib}/complete.pl
+%{privlib}/ctime.pl
+%{privlib}/dotsh.pl
+%{privlib}/exceptions.pl
+%{privlib}/fastcwd.pl
+%{privlib}/find.pl
+%{privlib}/finddepth.pl
+%{privlib}/flush.pl
+%{privlib}/getcwd.pl
+%{privlib}/getopt.pl
+%{privlib}/getopts.pl
+%{privlib}/hostname.pl
+%{privlib}/importenv.pl
+%{privlib}/look.pl
+%{privlib}/newgetopt.pl
+%{privlib}/open2.pl
+%{privlib}/open3.pl
+%{privlib}/pwd.pl
+%{privlib}/shellwords.pl
+%{privlib}/stat.pl
+%{privlib}/syslog.pl
+%{privlib}/tainted.pl
+%{privlib}/termcap.pl
+%{privlib}/timelocal.pl
+%{privlib}/validate.pl
+
 %if %{dual_life} || %{rebuild_from_scratch}
 %files parent
 %{privlib}/parent.pm
@@ -3685,6 +3803,23 @@ sed \
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Wed Aug 17 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-291
+- Backported and sub-packaged libraries historically supplied with Perl 4
+  into perl-Perl4-CoreLibs
+
+* Tue Aug 16 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-290
+- Removed deprecated files from provides (bug #1365991)
+
+* Mon Jun 13 2016 Petr Pisar <ppisar@redhat.com> - 4:5.16.3-289
+- Fix duplicating PerlIO::encoding when spawning threads (bug #1344749)
+
+* Wed Mar 02 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-288
+- Fix CRLF conversion in ASCII FTP upload (bug #1263734)
+- Don't leak the temp utf8 copy of namepv (bug #1063330)
+
+* Wed Mar 02 2016 Petr Šabata <contyk@redhat.com> - 4:5.16.3-287
+- Make File::Glob work with threads again (bug #1223045)
+
 * Thu Jul 02 2015 Petr Pisar <ppisar@redhat.com> - 4:5.16.3-286
 - Remove CPU-speed-sensitive test in Benchmark test (bug #1238567)
 - Rebuild with corrected binutils to fix systemtap support (bug #1238472)

@@ -1,0 +1,177 @@
+From faa03ffb8ccbf754d38d041570fcf2ce8816f36b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20=C5=A0abata?= <contyk@redhat.com>
+Date: Wed, 2 Sep 2015 16:24:58 +0200
+Subject: [PATCH] File::Glob: Dup glob state in CLONE()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+File::Glob: Dup glob state in CLONE()
+
+This solves [perl #119897] and [perl #117823], and restores the
+behavior of glob() in conjunction with threads of 5.14 and older.
+
+Since 5.16, code that used glob() inside a thread had been
+unintentionally sharing state between threads, which lead to things
+like this crashing and failing assertions:
+
+./perl -Ilib -Mthreads -e 'scalar glob("*"); threads->create(sub { glob("*") })->join();'
+
+Signed-off-by: Petr Šabata <contyk@redhat.com>
+---
+ MANIFEST                  |  1 +
+ ext/File-Glob/Glob.xs     | 33 ++++++++++++++++++++++
+ ext/File-Glob/t/threads.t | 71 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 105 insertions(+)
+ create mode 100644 ext/File-Glob/t/threads.t
+
+diff --git a/MANIFEST b/MANIFEST
+index 181bb3f..9771022 100644
+--- a/MANIFEST
++++ b/MANIFEST
+@@ -3683,6 +3683,7 @@ ext/File-Glob/t/global.t	See if File::Glob works
+ ext/File-Glob/TODO		File::Glob extension todo list
+ ext/File-Glob/t/rt114984.t	See if File::Glob works
+ ext/File-Glob/t/taint.t		See if File::Glob works
++ext/File-Glob/t/threads.t	See if File::Glob + threads works
+ ext/GDBM_File/GDBM_File.pm	GDBM extension Perl module
+ ext/GDBM_File/GDBM_File.xs	GDBM extension external subroutines
+ ext/GDBM_File/hints/sco.pl	Hint for GDBM_File for named architecture
+diff --git a/ext/File-Glob/Glob.xs b/ext/File-Glob/Glob.xs
+index d74e7a4..6c69aa6 100644
+--- a/ext/File-Glob/Glob.xs
++++ b/ext/File-Glob/Glob.xs
+@@ -9,6 +9,9 @@
+ #define MY_CXT_KEY "File::Glob::_guts" XS_VERSION
+ 
+ typedef struct {
++#ifdef USE_ITHREADS
++    tTHX interp;
++#endif
+     int		x_GLOB_ERROR;
+     HV *	x_GLOB_ENTRIES;
+ } my_cxt_t;
+@@ -380,6 +383,33 @@ PPCODE:
+     iterate(aTHX_ doglob_iter_wrapper);
+     SPAGAIN;
+ 
++#ifdef USE_ITHREADS
++
++void
++CLONE(...)
++INIT:
++    HV *glob_entries_clone = NULL;
++CODE:
++    PERL_UNUSED_ARG(items);
++    {
++        dMY_CXT;
++        if ( MY_CXT.x_GLOB_ENTRIES ) {
++            CLONE_PARAMS param;
++            param.stashes    = NULL;
++            param.flags      = 0;
++            param.proto_perl = MY_CXT.interp;
++            
++            glob_entries_clone = MUTABLE_HV(sv_dup_inc((SV*)MY_CXT.x_GLOB_ENTRIES, &param));
++        }
++    }
++    {
++        MY_CXT_CLONE;
++        MY_CXT.x_GLOB_ENTRIES = glob_entries_clone;
++        MY_CXT.interp = aTHX;
++    }
++
++#endif
++
+ BOOT:
+ {
+ #ifndef PERL_EXTERNAL_GLOB
+@@ -394,6 +424,9 @@ BOOT:
+     {
+ 	dMY_CXT;
+ 	MY_CXT.x_GLOB_ENTRIES = NULL;
++#ifdef USE_ITHREADS
++	MY_CXT.interp = aTHX;
++#endif
+     }  
+ }
+ 
+diff --git a/ext/File-Glob/t/threads.t b/ext/File-Glob/t/threads.t
+new file mode 100644
+index 0000000..141450a
+--- /dev/null
++++ b/ext/File-Glob/t/threads.t
+@@ -0,0 +1,71 @@
++#!./perl
++
++BEGIN {
++    chdir 't' if -d 't';
++    @INC = '../lib';
++    require Config; import Config;
++    if ($Config{'extensions'} !~ /\bFile\/Glob\b/i) {
++        print "1..0\n";
++        exit 0;
++    }
++}
++use strict;
++use warnings;
++# Test::More needs threads pre-loaded
++use if $Config{useithreads}, 'threads';
++use Test::More;
++
++BEGIN {
++    if (! $Config{'useithreads'}) {
++        plan skip_all => "Perl not compiled with 'useithreads'";
++    }
++}
++
++use File::Temp qw(tempdir);
++use File::Spec qw();
++use File::Glob qw(csh_glob);
++
++my($dir) = tempdir(CLEANUP => 1)
++    or die "Could not create temporary directory";
++
++my @temp_files = qw(1_file 2_file 3_file);
++for my $file (@temp_files) {
++    open my $fh, ">", File::Spec->catfile($dir, $file)
++        or die "Could not create file $dir/$file: $!";
++    close $fh;
++}
++my $cwd = Cwd::cwd();
++chdir $dir
++    or die "Could not chdir to $dir: $!";
++
++sub do_glob { scalar csh_glob("*") }
++# Stablish some glob state
++my $first_file = do_glob();
++is($first_file, $temp_files[0]);
++
++my @files;
++push @files, threads->create(\&do_glob)->join() for 1..5;
++is_deeply(
++    \@files,
++    [($temp_files[1]) x 5],
++    "glob() state is cloned for new threads"
++);
++
++@files = threads->create({'context' => 'list'},
++    sub {
++        return do_glob(), threads->create(\&do_glob)->join()
++    })->join();
++
++is_deeply(
++    \@files,
++    [@temp_files[1,2]],
++    "..and for new threads inside threads"
++);
++
++my $second_file = do_glob();
++is($second_file, $temp_files[1], "state doesn't leak from threads");
++
++chdir $cwd
++    or die "Could not chdir back to $cwd: $!";
++
++done_testing;
+-- 
+2.4.3
+

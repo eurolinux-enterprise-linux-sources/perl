@@ -1,0 +1,2484 @@
+diff -ENwbur perl-5.16.3-orig/lib/abbrev.pl perl-5.16.3/lib/abbrev.pl
+--- perl-5.16.3-orig/lib/abbrev.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/abbrev.pl	2016-08-18 10:07:06.401442446 +0200
+@@ -0,0 +1,43 @@
++;# Usage:
++;#	%foo = ();
++;#	&abbrev(*foo,LIST);
++;#	...
++;#	$long = $foo{$short};
++
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Text::Abbrev
++#
++
++package abbrev;
++
++sub main'abbrev {
++    local(*domain) = @_;
++    shift(@_);
++    @cmp = @_;
++    local($[) = 0;
++    foreach $name (@_) {
++	@extra = split(//,$name);
++	$abbrev = shift(@extra);
++	$len = 1;
++	foreach $cmp (@cmp) {
++	    next if $cmp eq $name;
++	    while (@extra && substr($cmp,0,$len) eq $abbrev) {
++		$abbrev .= shift(@extra);
++		++$len;
++	    }
++	}
++	$domain{$abbrev} = $name;
++	while ($#extra >= 0) {
++	    $abbrev .= shift(@extra);
++	    $domain{$abbrev} = $name;
++	}
++    }
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/assert.pl perl-5.16.3/lib/assert.pl
+--- perl-5.16.3-orig/lib/assert.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/assert.pl	2016-08-18 10:07:06.409442411 +0200
+@@ -0,0 +1,55 @@
++# assert.pl
++# tchrist@convex.com (Tom Christiansen)
++# 
++# Usage:
++# 
++#     &assert('@x > @y');
++#     &assert('$var > 10', $var, $othervar, @various_info);
++# 
++# That is, if the first expression evals false, we blow up.  The
++# rest of the args, if any, are nice to know because they will
++# be printed out by &panic, which is just the stack-backtrace
++# routine shamelessly borrowed from the perl debugger.
++
++sub assert {
++    &panic("ASSERTION BOTCHED: $_[$[]",$@) unless eval $_[$[];
++} 
++
++sub panic {
++    package DB;
++
++    select(STDERR);
++
++    print "\npanic: @_\n";
++
++    exit 1 if $] <= 4.003;  # caller broken
++
++    # stack traceback gratefully borrowed from perl debugger
++
++    local $_;
++    my $i;
++    my ($p,$f,$l,$s,$h,$a,@a,@frames);
++    for ($i = 0; ($p,$f,$l,$s,$h,$w) = caller($i); $i++) {
++	@a = @args;
++	for (@a) {
++	    if (/^StB\000/ && length($_) == length($_main{'_main'})) {
++		$_ = sprintf("%s",$_);
++	    }
++	    else {
++		s/'/\\'/g;
++		s/([^\0]*)/'$1'/ unless /^-?[\d.]+$/;
++		s/([\200-\377])/sprintf("M-%c",ord($1)&0177)/eg;
++		s/([\0-\37\177])/sprintf("^%c",ord($1)^64)/eg;
++	    }
++	}
++	$w = $w ? '@ = ' : '$ = ';
++	$a = $h ? '(' . join(', ', @a) . ')' : '';
++	push(@frames, "$w&$s$a from file $f line $l\n");
++    }
++    for ($i=0; $i <= $#frames; $i++) {
++	print $frames[$i];
++    }
++    exit 1;
++} 
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/bigfloat.pl perl-5.16.3/lib/bigfloat.pl
+--- perl-5.16.3-orig/lib/bigfloat.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/bigfloat.pl	2016-08-18 10:07:06.418442371 +0200
+@@ -0,0 +1,254 @@
++package bigfloat;
++require "bigint.pl";
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Math::BigFloat
++#
++# Arbitrary length float math package
++#
++# by Mark Biggar
++#
++# number format
++#   canonical strings have the form /[+-]\d+E[+-]\d+/
++#   Input values can have embedded whitespace
++# Error returns
++#   'NaN'           An input parameter was "Not a Number" or 
++#                       divide by zero or sqrt of negative number
++# Division is computed to 
++#   max($div_scale,length(dividend)+length(divisor)) 
++#   digits by default.
++# Also used for default sqrt scale
++
++$div_scale = 40;
++
++# Rounding modes one of 'even', 'odd', '+inf', '-inf', 'zero' or 'trunc'.
++
++$rnd_mode = 'even';
++
++#   bigfloat routines
++#
++#   fadd(NSTR, NSTR) return NSTR            addition
++#   fsub(NSTR, NSTR) return NSTR            subtraction
++#   fmul(NSTR, NSTR) return NSTR            multiplication
++#   fdiv(NSTR, NSTR[,SCALE]) returns NSTR   division to SCALE places
++#   fneg(NSTR) return NSTR                  negation
++#   fabs(NSTR) return NSTR                  absolute value
++#   fcmp(NSTR,NSTR) return CODE             compare undef,<0,=0,>0
++#   fround(NSTR, SCALE) return NSTR         round to SCALE digits
++#   ffround(NSTR, SCALE) return NSTR        round at SCALEth place
++#   fnorm(NSTR) return (NSTR)               normalize
++#   fsqrt(NSTR[, SCALE]) return NSTR        sqrt to SCALE places
++
++# Convert a number to canonical string form.
++#   Takes something that looks like a number and converts it to
++#   the form /^[+-]\d+E[+-]\d+$/.
++sub main'fnorm { #(string) return fnum_str
++    local($_) = @_;
++    s/\s+//g;                               # strip white space
++    if (/^([+-]?)(\d*)(\.(\d*))?([Ee]([+-]?\d+))?$/
++	  && ($2 ne '' || defined($4))) {
++	my $x = defined($4) ? $4 : '';
++	&norm(($1 ? "$1$2$x" : "+$2$x"), (($x ne '') ? $6-length($x) : $6));
++    } else {
++	'NaN';
++    }
++}
++
++# normalize number -- for internal use
++sub norm { #(mantissa, exponent) return fnum_str
++    local($_, $exp) = @_;
++    if ($_ eq 'NaN') {
++	'NaN';
++    } else {
++	s/^([+-])0+/$1/;                        # strip leading zeros
++	if (length($_) == 1) {
++	    '+0E+0';
++	} else {
++	    $exp += length($1) if (s/(0+)$//);  # strip trailing zeros
++	    sprintf("%sE%+ld", $_, $exp);
++	}
++    }
++}
++
++# negation
++sub main'fneg { #(fnum_str) return fnum_str
++    local($_) = &'fnorm($_[$[]);
++    vec($_,0,8) ^= ord('+') ^ ord('-') unless $_ eq '+0E+0'; # flip sign
++    if ( ord("\t") == 9 ) { # ascii
++        s/^H/N/;
++    }
++    else { # ebcdic character set
++        s/\373/N/;
++    }
++    $_;
++}
++
++# absolute value
++sub main'fabs { #(fnum_str) return fnum_str
++    local($_) = &'fnorm($_[$[]);
++    s/^-/+/;		                       # mash sign
++    $_;
++}
++
++# multiplication
++sub main'fmul { #(fnum_str, fnum_str) return fnum_str
++    local($x,$y) = (&'fnorm($_[$[]),&'fnorm($_[$[+1]));
++    if ($x eq 'NaN' || $y eq 'NaN') {
++	'NaN';
++    } else {
++	local($xm,$xe) = split('E',$x);
++	local($ym,$ye) = split('E',$y);
++	&norm(&'bmul($xm,$ym),$xe+$ye);
++    }
++}
++
++# addition
++sub main'fadd { #(fnum_str, fnum_str) return fnum_str
++    local($x,$y) = (&'fnorm($_[$[]),&'fnorm($_[$[+1]));
++    if ($x eq 'NaN' || $y eq 'NaN') {
++	'NaN';
++    } else {
++	local($xm,$xe) = split('E',$x);
++	local($ym,$ye) = split('E',$y);
++	($xm,$xe,$ym,$ye) = ($ym,$ye,$xm,$xe) if ($xe < $ye);
++	&norm(&'badd($ym,$xm.('0' x ($xe-$ye))),$ye);
++    }
++}
++
++# subtraction
++sub main'fsub { #(fnum_str, fnum_str) return fnum_str
++    &'fadd($_[$[],&'fneg($_[$[+1]));    
++}
++
++# division
++#   args are dividend, divisor, scale (optional)
++#   result has at most max(scale, length(dividend), length(divisor)) digits
++sub main'fdiv #(fnum_str, fnum_str[,scale]) return fnum_str
++{
++    local($x,$y,$scale) = (&'fnorm($_[$[]),&'fnorm($_[$[+1]),$_[$[+2]);
++    if ($x eq 'NaN' || $y eq 'NaN' || $y eq '+0E+0') {
++	'NaN';
++    } else {
++	local($xm,$xe) = split('E',$x);
++	local($ym,$ye) = split('E',$y);
++	$scale = $div_scale if (!$scale);
++	$scale = length($xm)-1 if (length($xm)-1 > $scale);
++	$scale = length($ym)-1 if (length($ym)-1 > $scale);
++	$scale = $scale + length($ym) - length($xm);
++	&norm(&round(&'bdiv($xm.('0' x $scale),$ym),&'babs($ym)),
++	    $xe-$ye-$scale);
++    }
++}
++
++# round int $q based on fraction $r/$base using $rnd_mode
++sub round { #(int_str, int_str, int_str) return int_str
++    local($q,$r,$base) = @_;
++    if ($q eq 'NaN' || $r eq 'NaN') {
++	'NaN';
++    } elsif ($rnd_mode eq 'trunc') {
++	$q;                         # just truncate
++    } else {
++	local($cmp) = &'bcmp(&'bmul($r,'+2'),$base);
++	if ( $cmp < 0 ||
++		 ($cmp == 0 &&
++		  ( $rnd_mode eq 'zero'                             ||
++		   ($rnd_mode eq '-inf' && (substr($q,$[,1) eq '+')) ||
++		   ($rnd_mode eq '+inf' && (substr($q,$[,1) eq '-')) ||
++		   ($rnd_mode eq 'even' && $q =~ /[24680]$/)        ||
++		   ($rnd_mode eq 'odd'  && $q =~ /[13579]$/)        )) ) {
++	    $q;                     # round down
++	} else {
++	    &'badd($q, ((substr($q,$[,1) eq '-') ? '-1' : '+1'));
++				    # round up
++	}
++    }
++}
++
++# round the mantissa of $x to $scale digits
++sub main'fround { #(fnum_str, scale) return fnum_str
++    local($x,$scale) = (&'fnorm($_[$[]),$_[$[+1]);
++    if ($x eq 'NaN' || $scale <= 0) {
++	$x;
++    } else {
++	local($xm,$xe) = split('E',$x);
++	if (length($xm)-1 <= $scale) {
++	    $x;
++	} else {
++	    &norm(&round(substr($xm,$[,$scale+1),
++			 "+0".substr($xm,$[+$scale+1,1),"+10"),
++		  $xe+length($xm)-$scale-1);
++	}
++    }
++}
++
++# round $x at the 10 to the $scale digit place
++sub main'ffround { #(fnum_str, scale) return fnum_str
++    local($x,$scale) = (&'fnorm($_[$[]),$_[$[+1]);
++    if ($x eq 'NaN') {
++	'NaN';
++    } else {
++	local($xm,$xe) = split('E',$x);
++	if ($xe >= $scale) {
++	    $x;
++	} else {
++	    $xe = length($xm)+$xe-$scale;
++	    if ($xe < 1) {
++		'+0E+0';
++	    } elsif ($xe == 1) {
++		# The first substr preserves the sign, which means that
++		# we'll pass a non-normalized "-0" to &round when rounding
++		# -0.006 (for example), purely so that &round won't lose
++		# the sign.
++		&norm(&round(substr($xm,$[,1).'0',
++		      "+0".substr($xm,$[+1,1),"+10"), $scale);
++	    } else {
++		&norm(&round(substr($xm,$[,$xe),
++		      "+0".substr($xm,$[+$xe,1),"+10"), $scale);
++	    }
++	}
++    }
++}
++    
++# compare 2 values returns one of undef, <0, =0, >0
++#   returns undef if either or both input value are not numbers
++sub main'fcmp #(fnum_str, fnum_str) return cond_code
++{
++    local($x, $y) = (&'fnorm($_[$[]),&'fnorm($_[$[+1]));
++    if ($x eq "NaN" || $y eq "NaN") {
++	undef;
++    } else {
++	ord($y) <=> ord($x)
++	||
++	(  local($xm,$xe,$ym,$ye) = split('E', $x."E$y"),
++	     (($xe <=> $ye) * (substr($x,$[,1).'1')
++             || &bigint'cmp($xm,$ym))
++	);
++    }
++}
++
++# square root by Newtons method.
++sub main'fsqrt { #(fnum_str[, scale]) return fnum_str
++    local($x, $scale) = (&'fnorm($_[$[]), $_[$[+1]);
++    if ($x eq 'NaN' || $x =~ /^-/) {
++	'NaN';
++    } elsif ($x eq '+0E+0') {
++	'+0E+0';
++    } else {
++	local($xm, $xe) = split('E',$x);
++	$scale = $div_scale if (!$scale);
++	$scale = length($xm)-1 if ($scale < length($xm)-1);
++	local($gs, $guess) = (1, sprintf("1E%+d", (length($xm)+$xe-1)/2));
++	while ($gs < 2*$scale) {
++	    $guess = &'fmul(&'fadd($guess,&'fdiv($x,$guess,$gs*2)),".5");
++	    $gs *= 2;
++	}
++	&'fround($guess, $scale);
++    }
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/bigint.pl perl-5.16.3/lib/bigint.pl
+--- perl-5.16.3-orig/lib/bigint.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/bigint.pl	2016-08-18 10:07:06.431442314 +0200
+@@ -0,0 +1,320 @@
++package bigint;
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative:  Math::BigInt
++#
++# arbitrary size integer math package
++#
++# by Mark Biggar
++#
++# Canonical Big integer value are strings of the form
++#       /^[+-]\d+$/ with leading zeros suppressed
++# Input values to these routines may be strings of the form
++#       /^\s*[+-]?[\d\s]+$/.
++# Examples:
++#   '+0'                            canonical zero value
++#   '   -123 123 123'               canonical value '-123123123'
++#   '1 23 456 7890'                 canonical value '+1234567890'
++# Output values always in canonical form
++#
++# Actual math is done in an internal format consisting of an array
++#   whose first element is the sign (/^[+-]$/) and whose remaining 
++#   elements are base 100000 digits with the least significant digit first.
++# The string 'NaN' is used to represent the result when input arguments 
++#   are not numbers, as well as the result of dividing by zero
++#
++# routines provided are:
++#
++#   bneg(BINT) return BINT              negation
++#   babs(BINT) return BINT              absolute value
++#   bcmp(BINT,BINT) return CODE         compare numbers (undef,<0,=0,>0)
++#   badd(BINT,BINT) return BINT         addition
++#   bsub(BINT,BINT) return BINT         subtraction
++#   bmul(BINT,BINT) return BINT         multiplication
++#   bdiv(BINT,BINT) return (BINT,BINT)  division (quo,rem) just quo if scalar
++#   bmod(BINT,BINT) return BINT         modulus
++#   bgcd(BINT,BINT) return BINT         greatest common divisor
++#   bnorm(BINT) return BINT             normalization
++#
++
++# overcome a floating point problem on certain osnames (posix-bc, os390)
++BEGIN {
++    my $x = 100000.0;
++    my $use_mult = int($x*1e-5)*1e5 == $x ? 1 : 0;
++}
++
++$zero = 0;
++
++
++# normalize string form of number.   Strip leading zeros.  Strip any
++#   white space and add a sign, if missing.
++# Strings that are not numbers result the value 'NaN'.
++
++sub main'bnorm { #(num_str) return num_str
++    local($_) = @_;
++    s/\s+//g;                           # strip white space
++    if (s/^([+-]?)0*(\d+)$/$1$2/) {     # test if number
++	substr($_,$[,0) = '+' unless $1; # Add missing sign
++	s/^-0/+0/;
++	$_;
++    } else {
++	'NaN';
++    }
++}
++
++# Convert a number from string format to internal base 100000 format.
++#   Assumes normalized value as input.
++sub internal { #(num_str) return int_num_array
++    local($d) = @_;
++    ($is,$il) = (substr($d,$[,1),length($d)-2);
++    substr($d,$[,1) = '';
++    ($is, reverse(unpack("a" . ($il%5+1) . ("a5" x ($il/5)), $d)));
++}
++
++# Convert a number from internal base 100000 format to string format.
++#   This routine scribbles all over input array.
++sub external { #(int_num_array) return num_str
++    $es = shift;
++    grep($_ > 9999 || ($_ = substr('0000'.$_,-5)), @_);   # zero pad
++    &'bnorm(join('', $es, reverse(@_)));    # reverse concat and normalize
++}
++
++# Negate input value.
++sub main'bneg { #(num_str) return num_str
++    local($_) = &'bnorm(@_);
++    vec($_,0,8) ^= ord('+') ^ ord('-') unless $_ eq '+0';
++    s/^./N/ unless /^[-+]/; # works both in ASCII and EBCDIC
++    $_;
++}
++
++# Returns the absolute value of the input.
++sub main'babs { #(num_str) return num_str
++    &abs(&'bnorm(@_));
++}
++
++sub abs { # post-normalized abs for internal use
++    local($_) = @_;
++    s/^-/+/;
++    $_;
++}
++
++# Compares 2 values.  Returns one of undef, <0, =0, >0. (suitable for sort)
++sub main'bcmp { #(num_str, num_str) return cond_code
++    local($x,$y) = (&'bnorm($_[$[]),&'bnorm($_[$[+1]));
++    if ($x eq 'NaN') {
++	undef;
++    } elsif ($y eq 'NaN') {
++	undef;
++    } else {
++	&cmp($x,$y);
++    }
++}
++
++sub cmp { # post-normalized compare for internal use
++    local($cx, $cy) = @_;
++    return 0 if ($cx eq $cy);
++
++    local($sx, $sy) = (substr($cx, 0, 1), substr($cy, 0, 1));
++    local($ld);
++
++    if ($sx eq '+') {
++      return  1 if ($sy eq '-' || $cy eq '+0');
++      $ld = length($cx) - length($cy);
++      return $ld if ($ld);
++      return $cx cmp $cy;
++    } else { # $sx eq '-'
++      return -1 if ($sy eq '+');
++      $ld = length($cy) - length($cx);
++      return $ld if ($ld);
++      return $cy cmp $cx;
++    }
++
++}
++
++sub main'badd { #(num_str, num_str) return num_str
++    local(*x, *y); ($x, $y) = (&'bnorm($_[$[]),&'bnorm($_[$[+1]));
++    if ($x eq 'NaN') {
++	'NaN';
++    } elsif ($y eq 'NaN') {
++	'NaN';
++    } else {
++	@x = &internal($x);             # convert to internal form
++	@y = &internal($y);
++	local($sx, $sy) = (shift @x, shift @y); # get signs
++	if ($sx eq $sy) {
++	    &external($sx, &add(*x, *y)); # if same sign add
++	} else {
++	    ($x, $y) = (&abs($x),&abs($y)); # make abs
++	    if (&cmp($y,$x) > 0) {
++		&external($sy, &sub(*y, *x));
++	    } else {
++		&external($sx, &sub(*x, *y));
++	    }
++	}
++    }
++}
++
++sub main'bsub { #(num_str, num_str) return num_str
++    &'badd($_[$[],&'bneg($_[$[+1]));    
++}
++
++# GCD -- Euclids algorithm Knuth Vol 2 pg 296
++sub main'bgcd { #(num_str, num_str) return num_str
++    local($x,$y) = (&'bnorm($_[$[]),&'bnorm($_[$[+1]));
++    if ($x eq 'NaN' || $y eq 'NaN') {
++	'NaN';
++    } else {
++	($x, $y) = ($y,&'bmod($x,$y)) while $y ne '+0';
++	$x;
++    }
++}
++
++# routine to add two base 1e5 numbers
++#   stolen from Knuth Vol 2 Algorithm A pg 231
++#   there are separate routines to add and sub as per Kunth pg 233
++sub add { #(int_num_array, int_num_array) return int_num_array
++    local(*x, *y) = @_;
++    $car = 0;
++    for $x (@x) {
++	last unless @y || $car;
++	$x -= 1e5 if $car = (($x += shift(@y) + $car) >= 1e5) ? 1 : 0;
++    }
++    for $y (@y) {
++	last unless $car;
++	$y -= 1e5 if $car = (($y += $car) >= 1e5) ? 1 : 0;
++    }
++    (@x, @y, $car);
++}
++
++# subtract base 1e5 numbers -- stolen from Knuth Vol 2 pg 232, $x > $y
++sub sub { #(int_num_array, int_num_array) return int_num_array
++    local(*sx, *sy) = @_;
++    $bar = 0;
++    for $sx (@sx) {
++	last unless @y || $bar;
++	$sx += 1e5 if $bar = (($sx -= shift(@sy) + $bar) < 0);
++    }
++    @sx;
++}
++
++# multiply two numbers -- stolen from Knuth Vol 2 pg 233
++sub main'bmul { #(num_str, num_str) return num_str
++    local(*x, *y); ($x, $y) = (&'bnorm($_[$[]), &'bnorm($_[$[+1]));
++    if ($x eq 'NaN') {
++	'NaN';
++    } elsif ($y eq 'NaN') {
++	'NaN';
++    } else {
++	@x = &internal($x);
++	@y = &internal($y);
++	local($signr) = (shift @x ne shift @y) ? '-' : '+';
++	@prod = ();
++	for $x (@x) {
++	    ($car, $cty) = (0, $[);
++	    for $y (@y) {
++		$prod = $x * $y + $prod[$cty] + $car;
++                if ($use_mult) {
++		    $prod[$cty++] =
++		        $prod - ($car = int($prod * 1e-5)) * 1e5;
++                }
++                else {
++		    $prod[$cty++] =
++		        $prod - ($car = int($prod / 1e5)) * 1e5;
++                }
++	    }
++	    $prod[$cty] += $car if $car;
++	    $x = shift @prod;
++	}
++	&external($signr, @x, @prod);
++    }
++}
++
++# modulus
++sub main'bmod { #(num_str, num_str) return num_str
++    (&'bdiv(@_))[$[+1];
++}
++
++sub main'bdiv { #(dividend: num_str, divisor: num_str) return num_str
++    local (*x, *y); ($x, $y) = (&'bnorm($_[$[]), &'bnorm($_[$[+1]));
++    return wantarray ? ('NaN','NaN') : 'NaN'
++	if ($x eq 'NaN' || $y eq 'NaN' || $y eq '+0');
++    return wantarray ? ('+0',$x) : '+0' if (&cmp(&abs($x),&abs($y)) < 0);
++    @x = &internal($x); @y = &internal($y);
++    $srem = $y[$[];
++    $sr = (shift @x ne shift @y) ? '-' : '+';
++    $car = $bar = $prd = 0;
++    if (($dd = int(1e5/($y[$#y]+1))) != 1) {
++	for $x (@x) {
++	    $x = $x * $dd + $car;
++            if ($use_mult) {
++	    $x -= ($car = int($x * 1e-5)) * 1e5;
++            }
++            else {
++	    $x -= ($car = int($x / 1e5)) * 1e5;
++            }
++	}
++	push(@x, $car); $car = 0;
++	for $y (@y) {
++	    $y = $y * $dd + $car;
++            if ($use_mult) {
++	    $y -= ($car = int($y * 1e-5)) * 1e5;
++            }
++            else {
++	    $y -= ($car = int($y / 1e5)) * 1e5;
++            }
++	}
++    }
++    else {
++	push(@x, 0);
++    }
++    @q = (); ($v2,$v1) = @y[-2,-1];
++    while ($#x > $#y) {
++	($u2,$u1,$u0) = @x[-3..-1];
++	$q = (($u0 == $v1) ? 99999 : int(($u0*1e5+$u1)/$v1));
++	--$q while ($v2*$q > ($u0*1e5+$u1-$q*$v1)*1e5+$u2);
++	if ($q) {
++	    ($car, $bar) = (0,0);
++	    for ($y = $[, $x = $#x-$#y+$[-1; $y <= $#y; ++$y,++$x) {
++		$prd = $q * $y[$y] + $car;
++                if ($use_mult) {
++		$prd -= ($car = int($prd * 1e-5)) * 1e5;
++                }
++                else {
++		$prd -= ($car = int($prd / 1e5)) * 1e5;
++                }
++		$x[$x] += 1e5 if ($bar = (($x[$x] -= $prd + $bar) < 0));
++	    }
++	    if ($x[$#x] < $car + $bar) {
++		$car = 0; --$q;
++		for ($y = $[, $x = $#x-$#y+$[-1; $y <= $#y; ++$y,++$x) {
++		    $x[$x] -= 1e5
++			if ($car = (($x[$x] += $y[$y] + $car) > 1e5));
++		}
++	    }   
++	}
++	pop(@x); unshift(@q, $q);
++    }
++    if (wantarray) {
++	@d = ();
++	if ($dd != 1) {
++	    $car = 0;
++	    for $x (reverse @x) {
++		$prd = $car * 1e5 + $x;
++		$car = $prd - ($tmp = int($prd / $dd)) * $dd;
++		unshift(@d, $tmp);
++	    }
++	}
++	else {
++	    @d = @x;
++	}
++	(&external($sr, @q), &external($srem, @d, $zero));
++    } else {
++	&external($sr, @q);
++    }
++}
++1;
+diff -ENwbur perl-5.16.3-orig/lib/bigrat.pl perl-5.16.3/lib/bigrat.pl
+--- perl-5.16.3-orig/lib/bigrat.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/bigrat.pl	2016-08-18 10:07:06.441442270 +0200
+@@ -0,0 +1,155 @@
++package bigrat;
++require "bigint.pl";
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Arbitrary size rational math package
++#
++# by Mark Biggar
++#
++# Input values to these routines consist of strings of the form 
++#   m|^\s*[+-]?[\d\s]+(/[\d\s]+)?$|.
++# Examples:
++#   "+0/1"                          canonical zero value
++#   "3"                             canonical value "+3/1"
++#   "   -123/123 123"               canonical value "-1/1001"
++#   "123 456/7890"                  canonical value "+20576/1315"
++# Output values always include a sign and no leading zeros or
++#   white space.
++# This package makes use of the bigint package.
++# The string 'NaN' is used to represent the result when input arguments 
++#   that are not numbers, as well as the result of dividing by zero and
++#       the sqrt of a negative number.
++# Extreamly naive algorthims are used.
++#
++# Routines provided are:
++#
++#   rneg(RAT) return RAT                negation
++#   rabs(RAT) return RAT                absolute value
++#   rcmp(RAT,RAT) return CODE           compare numbers (undef,<0,=0,>0)
++#   radd(RAT,RAT) return RAT            addition
++#   rsub(RAT,RAT) return RAT            subtraction
++#   rmul(RAT,RAT) return RAT            multiplication
++#   rdiv(RAT,RAT) return RAT            division
++#   rmod(RAT) return (RAT,RAT)          integer and fractional parts
++#   rnorm(RAT) return RAT               normalization
++#   rsqrt(RAT, cycles) return RAT       square root
++
++# Convert a number to the canonical string form m|^[+-]\d+/\d+|.
++sub main'rnorm { #(string) return rat_num
++    local($_) = @_;
++    s/\s+//g;
++    if (m#^([+-]?\d+)(/(\d*[1-9]0*))?$#) {
++	&norm($1, $3 ? $3 : '+1');
++    } else {
++	'NaN';
++    }
++}
++
++# Normalize by reducing to lowest terms
++sub norm { #(bint, bint) return rat_num
++    local($num,$dom) = @_;
++    if ($num eq 'NaN') {
++	'NaN';
++    } elsif ($dom eq 'NaN') {
++	'NaN';
++    } elsif ($dom =~ /^[+-]?0+$/) {
++	'NaN';
++    } else {
++	local($gcd) = &'bgcd($num,$dom);
++	$gcd =~ s/^-/+/;
++	if ($gcd ne '+1') { 
++	    $num = &'bdiv($num,$gcd);
++	    $dom = &'bdiv($dom,$gcd);
++	} else {
++	    $num = &'bnorm($num);
++	    $dom = &'bnorm($dom);
++	}
++	substr($dom,$[,1) = '';
++	"$num/$dom";
++    }
++}
++
++# negation
++sub main'rneg { #(rat_num) return rat_num
++    local($_) = &'rnorm(@_);
++    tr/-+/+-/ if ($_ ne '+0/1');
++    $_;
++}
++
++# absolute value
++sub main'rabs { #(rat_num) return $rat_num
++    local($_) = &'rnorm(@_);
++    substr($_,$[,1) = '+' unless $_ eq 'NaN';
++    $_;
++}
++
++# multipication
++sub main'rmul { #(rat_num, rat_num) return rat_num
++    local($xn,$xd) = split('/',&'rnorm($_[$[]));
++    local($yn,$yd) = split('/',&'rnorm($_[$[+1]));
++    &norm(&'bmul($xn,$yn),&'bmul($xd,$yd));
++}
++
++# division
++sub main'rdiv { #(rat_num, rat_num) return rat_num
++    local($xn,$xd) = split('/',&'rnorm($_[$[]));
++    local($yn,$yd) = split('/',&'rnorm($_[$[+1]));
++    &norm(&'bmul($xn,$yd),&'bmul($xd,$yn));
++}
++
++# addition
++sub main'radd { #(rat_num, rat_num) return rat_num
++    local($xn,$xd) = split('/',&'rnorm($_[$[]));
++    local($yn,$yd) = split('/',&'rnorm($_[$[+1]));
++    &norm(&'badd(&'bmul($xn,$yd),&'bmul($yn,$xd)),&'bmul($xd,$yd));
++}
++
++# subtraction
++sub main'rsub { #(rat_num, rat_num) return rat_num
++    local($xn,$xd) = split('/',&'rnorm($_[$[]));
++    local($yn,$yd) = split('/',&'rnorm($_[$[+1]));
++    &norm(&'bsub(&'bmul($xn,$yd),&'bmul($yn,$xd)),&'bmul($xd,$yd));
++}
++
++# comparison
++sub main'rcmp { #(rat_num, rat_num) return cond_code
++    local($xn,$xd) = split('/',&'rnorm($_[$[]));
++    local($yn,$yd) = split('/',&'rnorm($_[$[+1]));
++    &bigint'cmp(&'bmul($xn,$yd),&'bmul($yn,$xd));
++}
++
++# int and frac parts
++sub main'rmod { #(rat_num) return (rat_num,rat_num)
++    local($xn,$xd) = split('/',&'rnorm(@_));
++    local($i,$f) = &'bdiv($xn,$xd);
++    if (wantarray) {
++	("$i/1", "$f/$xd");
++    } else {
++	"$i/1";
++    }   
++}
++
++# square root by Newtons method.
++#   cycles specifies the number of iterations default: 5
++sub main'rsqrt { #(fnum_str[, cycles]) return fnum_str
++    local($x, $scale) = (&'rnorm($_[$[]), $_[$[+1]);
++    if ($x eq 'NaN') {
++	'NaN';
++    } elsif ($x =~ /^-/) {
++	'NaN';
++    } else {
++	local($gscale, $guess) = (0, '+1/1');
++	$scale = 5 if (!$scale);
++	while ($gscale++ < $scale) {
++	    $guess = &'rmul(&'radd($guess,&'rdiv($x,$guess)),"+1/2");
++	}
++	"$guess";          # quotes necessary due to perl bug
++    }
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/cacheout.pl perl-5.16.3/lib/cacheout.pl
+--- perl-5.16.3-orig/lib/cacheout.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/cacheout.pl	2016-08-18 10:07:06.452442221 +0200
+@@ -0,0 +1,55 @@
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: FileCache
++
++# Open in their package.
++
++sub cacheout'open {
++    open($_[0], $_[1]);
++}
++
++# Close as well
++
++sub cacheout'close {
++    close($_[0]);
++}
++
++# But only this sub name is visible to them.
++
++sub cacheout {
++    package cacheout;
++
++    ($file) = @_;
++    if (!$isopen{$file}) {
++	if (++$numopen > $maxopen) {
++	    local(@lru) = sort {$isopen{$a} <=> $isopen{$b};} keys(%isopen);
++	    splice(@lru, $maxopen / 3);
++	    $numopen -= @lru;
++	    for (@lru) { &close($_); delete $isopen{$_}; }
++	}
++	&open($file, ($saw{$file}++ ? '>>' : '>') . $file)
++	    || die "Can't create $file: $!\n";
++    }
++    $isopen{$file} = ++$seq;
++}
++
++package cacheout;
++
++$seq = 0;
++$numopen = 0;
++
++if (open(PARAM,'/usr/include/sys/param.h')) {
++    local($_, $.);
++    while (<PARAM>) {
++	$maxopen = $1 - 4 if /^\s*#\s*define\s+NOFILE\s+(\d+)/;
++    }
++    close PARAM;
++}
++$maxopen = 16 unless $maxopen;
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/complete.pl perl-5.16.3/lib/complete.pl
+--- perl-5.16.3-orig/lib/complete.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/complete.pl	2016-08-18 10:07:06.460442186 +0200
+@@ -0,0 +1,120 @@
++;#
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Term::Complete
++#
++;#      @(#)complete.pl,v1.1            (me@anywhere.EBay.Sun.COM) 09/23/91
++;#
++;# Author: Wayne Thompson
++;#
++;# Description:
++;#     This routine provides word completion.
++;#     (TAB) attempts word completion.
++;#     (^D)  prints completion list.
++;#      (These may be changed by setting $Complete'complete, etc.)
++;#
++;# Diagnostics:
++;#     Bell when word completion fails.
++;#
++;# Dependencies:
++;#     The tty driver is put into raw mode.
++;#
++;# Bugs:
++;#
++;# Usage:
++;#     $input = &Complete('prompt_string', *completion_list);
++;#         or
++;#     $input = &Complete('prompt_string', @completion_list);
++;#
++
++CONFIG: {
++    package Complete;
++
++    $complete = "\004";
++    $kill     = "\025";
++    $erase1 =   "\177";
++    $erase2 =   "\010";
++}
++
++sub Complete {
++    package Complete;
++
++    local($prompt, @cmp_list, $return, @match, $l, $test, $cmp, $r);
++    if ($_[1] =~ /^StB\0/) {
++        ($prompt, *_) = @_;
++    }
++    else {
++        $prompt = shift(@_);
++    }
++    @cmp_lst = sort(@_);
++
++    system('stty raw -echo');
++    LOOP: {
++        print($prompt, $return);
++        while (($_ = getc(STDIN)) ne "\r") {
++            CASE: {
++                # (TAB) attempt completion
++                $_ eq "\t" && do {
++                    @match = grep(/^$return/, @cmp_lst);
++                    $l = length($test = shift(@match));
++                    unless ($#match < 0) {
++                        foreach $cmp (@match) {
++                            until (substr($cmp, 0, $l) eq substr($test, 0, $l)) {
++                                $l--;
++                            }
++                        }
++                        print("\a");
++                    }
++                    print($test = substr($test, $r, $l - $r));
++                    $r = length($return .= $test);
++                    last CASE;
++                };
++
++                # (^D) completion list
++                $_ eq $complete && do {
++                    print(join("\r\n", '', grep(/^$return/, @cmp_lst)), "\r\n");
++                    redo LOOP;
++                };
++
++                # (^U) kill
++                $_ eq $kill && do {
++                    if ($r) {
++                        undef $r;
++			undef $return;
++                        print("\r\n");
++                        redo LOOP;
++                    }
++                    last CASE;
++                };
++
++                # (DEL) || (BS) erase
++                ($_ eq $erase1 || $_ eq $erase2) && do {
++                    if($r) {
++                        print("\b \b");
++                        chop($return);
++                        $r--;
++                    }
++                    last CASE;
++                };
++
++                # printable char
++                ord >= 32 && do {
++                    $return .= $_;
++                    $r++;
++                    print;
++                    last CASE;
++                };
++            }
++        }
++    }
++    system('stty -raw echo');
++    print("\n");
++    $return;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/ctime.pl perl-5.16.3/lib/ctime.pl
+--- perl-5.16.3-orig/lib/ctime.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/ctime.pl	2016-08-18 10:07:06.471442137 +0200
+@@ -0,0 +1,59 @@
++;# ctime.pl is a simple Perl emulation for the well known ctime(3C) function.
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: the POSIX ctime function
++;#
++;# Waldemar Kebsch, Federal Republic of Germany, November 1988
++;# kebsch.pad@nixpbe.UUCP
++;# Modified March 1990, Feb 1991 to properly handle timezones
++;#  $RCSfile: ctime.pl,v $$Revision: 4.1 $$Date: 92/08/07 18:23:47 $
++;#   Marion Hakanson (hakanson@cse.ogi.edu)
++;#   Oregon Graduate Institute of Science and Technology
++;#
++;# usage:
++;#
++;#     #include <ctime.pl>          # see the -P and -I option in perl.man
++;#     $Date = &ctime(time);
++
++CONFIG: {
++    package ctime;
++
++    @DoW = ('Sun','Mon','Tue','Wed','Thu','Fri','Sat');
++    @MoY = ('Jan','Feb','Mar','Apr','May','Jun',
++	    'Jul','Aug','Sep','Oct','Nov','Dec');
++}
++
++sub ctime {
++    package ctime;
++
++    local($time) = @_;
++    local($[) = 0;
++    local($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst);
++
++    # Determine what time zone is in effect.
++    # Use GMT if TZ is defined as null, local time if TZ undefined.
++    # There's no portable way to find the system default timezone.
++
++    $TZ = defined($ENV{'TZ'}) ? ( $ENV{'TZ'} ? $ENV{'TZ'} : 'GMT' ) : '';
++    ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) =
++        ($TZ eq 'GMT') ? gmtime($time) : localtime($time);
++
++    # Hack to deal with 'PST8PDT' format of TZ
++    # Note that this can't deal with all the esoteric forms, but it
++    # does recognize the most common: [:]STDoff[DST[off][,rule]]
++
++    if($TZ=~/^([^:\d+\-,]{3,})([+-]?\d{1,2}(:\d{1,2}){0,2})([^\d+\-,]{3,})?/){
++        $TZ = $isdst ? $4 : $1;
++    }
++    $TZ .= ' ' unless $TZ eq '';
++
++    $year += 1900;
++    sprintf("%s %s %2d %2d:%02d:%02d %s%4d\n",
++      $DoW[$wday], $MoY[$mon], $mday, $hour, $min, $sec, $TZ, $year);
++}
++1;
+diff -ENwbur perl-5.16.3-orig/lib/dotsh.pl perl-5.16.3/lib/dotsh.pl
+--- perl-5.16.3-orig/lib/dotsh.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/dotsh.pl	2016-08-18 10:07:06.481442093 +0200
+@@ -0,0 +1,74 @@
++#
++#   @(#)dotsh.pl                                               03/19/94
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++#
++#   Author: Charles Collins
++#
++#   Description:
++#      This routine takes a shell script and 'dots' it into the current perl
++#      environment. This makes it possible to use existing system scripts
++#      to alter environment variables on the fly.
++#
++#   Usage:
++#      &dotsh ('ShellScript', 'DependentVariable(s)');
++#
++#         where
++#
++#      'ShellScript' is the full name of the shell script to be dotted
++#
++#      'DependentVariable(s)' is an optional list of shell variables in the
++#         form VARIABLE=VALUE,VARIABLE=VALUE,... that 'ShellScript' is
++#         dependent upon. These variables MUST be defined using shell syntax.
++#
++#   Example:
++#      &dotsh ('/foo/bar', 'arg1');
++#      &dotsh ('/foo/bar');
++#      &dotsh ('/foo/bar arg1 ... argN');
++#
++sub dotsh {
++   local(@sh) = @_;
++   local($tmp,$key,$shell,$command,$args,$vars) = '';
++   local(*dotsh);
++   undef *dotsh;
++   $dotsh = shift(@sh);
++   @dotsh = split (/\s/, $dotsh);
++   $command = shift (@dotsh);
++   $args = join (" ", @dotsh);
++   $vars = join ("\n", @sh);
++   open (_SH_ENV, "$command") || die "Could not open $dotsh!\n";
++   chop($_ = <_SH_ENV>);
++   $shell = "$1 -c" if ($_ =~ /^\#\!\s*(\S+(\/sh|\/ksh|\/zsh|\/csh))\s*$/);
++   close (_SH_ENV);
++   if (!$shell) {
++      if ($ENV{'SHELL'} =~ /\/sh$|\/ksh$|\/zsh$|\/bash$|\/csh$/) {
++	 $shell = "$ENV{'SHELL'} -c";
++      } else {
++	 print "SHELL not recognized!\nUsing /bin/sh...\n";
++	 $shell = "/bin/sh -c";
++      }
++   }
++   if (length($vars) > 0) {
++      open (_SH_ENV, "$shell \"$vars && . $command $args && set \" |") || die;
++   } else {
++      open (_SH_ENV, "$shell \". $command $args && set \" |") || die;
++   }
++
++   while (<_SH_ENV>) {
++       chop;
++       m/^([^=]*)=(.*)/s;
++       $ENV{$1} = $2;
++   }
++   close (_SH_ENV);
++
++   foreach $key (keys(%ENV)) {
++       $tmp .= "\$$key = \$ENV{'$key'};" if $key =~ /^[A-Za-z]\w*$/;
++   }
++   eval $tmp;
++}
++1;
+diff -ENwbur perl-5.16.3-orig/lib/exceptions.pl perl-5.16.3/lib/exceptions.pl
+--- perl-5.16.3-orig/lib/exceptions.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/exceptions.pl	2016-08-18 10:07:06.491442049 +0200
+@@ -0,0 +1,61 @@
++# exceptions.pl
++# tchrist@convex.com
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# 
++# Here's a little code I use for exception handling.  It's really just
++# glorfied eval/die.  The way to use use it is when you might otherwise
++# exit, use &throw to raise an exception.  The first enclosing &catch
++# handler looks at the exception and decides whether it can catch this kind
++# (catch takes a list of regexps to catch), and if so, it returns the one it
++# caught.  If it *can't* catch it, then it will reraise the exception
++# for someone else to possibly see, or to die otherwise.
++# 
++# I use oddly named variables in order to make darn sure I don't conflict 
++# with my caller.  I also hide in my own package, and eval the code in his.
++# 
++# The EXCEPTION: prefix is so you can tell whether it's a user-raised
++# exception or a perl-raised one (eval error).
++# 
++# --tom
++#
++# examples:
++#	if (&catch('/$user_input/', 'regexp', 'syntax error') {
++#		warn "oops try again";
++#		redo;
++#	}
++#
++#	if ($error = &catch('&subroutine()')) { # catches anything
++#
++#	&throw('bad input') if /^$/;
++
++sub catch {
++    package exception;
++    local($__code__, @__exceptions__) = @_;
++    local($__package__) = caller;
++    local($__exception__);
++
++    eval "package $__package__; $__code__";
++    if ($__exception__ = &'thrown) {
++	for (@__exceptions__) {
++	    return $__exception__ if /$__exception__/;
++	} 
++	&'throw($__exception__);
++    } 
++} 
++
++sub throw {
++    local($exception) = @_;
++    die "EXCEPTION: $exception\n";
++} 
++
++sub thrown {
++    $@ =~ /^(EXCEPTION: )+(.+)/ && $2;
++} 
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/fastcwd.pl perl-5.16.3/lib/fastcwd.pl
+--- perl-5.16.3-orig/lib/fastcwd.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/fastcwd.pl	2016-08-18 10:07:06.501442005 +0200
+@@ -0,0 +1,43 @@
++# By John Bazik
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Cwd
++#
++# Usage: $cwd = &fastcwd;
++#
++# This is a faster version of getcwd.  It's also more dangerous because
++# you might chdir out of a directory that you can't chdir back into.
++
++sub fastcwd {
++	local($odev, $oino, $cdev, $cino, $tdev, $tino);
++	local(@path, $path);
++	local(*DIR);
++
++	($cdev, $cino) = stat('.');
++	for (;;) {
++		($odev, $oino) = ($cdev, $cino);
++		chdir('..');
++		($cdev, $cino) = stat('.');
++		last if $odev == $cdev && $oino == $cino;
++		opendir(DIR, '.');
++		for (;;) {
++			$_ = readdir(DIR);
++			next if $_ eq '.';
++			next if $_ eq '..';
++
++			last unless $_;
++			($tdev, $tino) = lstat($_);
++			last unless $tdev != $odev || $tino != $oino;
++		}
++		closedir(DIR);
++		unshift(@path, $_);
++	}
++	chdir($path = '/' . join('/', @path));
++	$path;
++}
++1;
+diff -ENwbur perl-5.16.3-orig/lib/find.pl perl-5.16.3/lib/find.pl
+--- perl-5.16.3-orig/lib/find.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/find.pl	2016-08-18 10:07:06.510441965 +0200
+@@ -0,0 +1,47 @@
++# Usage:
++#	require "find.pl";
++#
++#	&find('/foo','/bar');
++#
++#	sub wanted { ... }
++#		where wanted does whatever you want.  $dir contains the
++#		current directory name, and $_ the current filename within
++#		that directory.  $name contains "$dir/$_".  You are cd'ed
++#		to $dir when the function is called.  The function may
++#		set $prune to prune the tree.
++#
++# This library is primarily for find2perl, which, when fed
++#
++#   find2perl / -name .nfs\* -mtime +7 -exec rm -f {} \; -o -fstype nfs -prune
++#
++# spits out something like this
++#
++#	sub wanted {
++#	    /^\.nfs.*$/ &&
++#	    (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) &&
++#	    int(-M _) > 7 &&
++#	    unlink($_)
++#	    ||
++#	    ($nlink || (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_))) &&
++#	    $dev < 0 &&
++#	    ($prune = 1);
++#	}
++#
++# Set the variable $dont_use_nlink if you're using AFS, since AFS cheats.
++
++use File::Find ();
++
++*name		= *File::Find::name;
++*prune		= *File::Find::prune;
++*dir		= *File::Find::dir;
++*topdir		= *File::Find::topdir;
++*topdev		= *File::Find::topdev;
++*topino		= *File::Find::topino;
++*topmode	= *File::Find::topmode;
++*topnlink	= *File::Find::topnlink;
++
++sub find {
++    &File::Find::find(\&wanted, @_);
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/finddepth.pl perl-5.16.3/lib/finddepth.pl
+--- perl-5.16.3-orig/lib/finddepth.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/finddepth.pl	2016-08-18 10:07:06.520441921 +0200
+@@ -0,0 +1,46 @@
++# Usage:
++#	require "finddepth.pl";
++#
++#	&finddepth('/foo','/bar');
++#
++#	sub wanted { ... }
++#		where wanted does whatever you want.  $dir contains the
++#		current directory name, and $_ the current filename within
++#		that directory.  $name contains "$dir/$_".  You are cd'ed
++#		to $dir when the function is called.  The function may
++#		set $prune to prune the tree.
++#
++# This library is primarily for find2perl, which, when fed
++#
++#   find2perl / -name .nfs\* -mtime +7 -exec rm -f {} \; -o -fstype nfs -prune
++#
++# spits out something like this
++#
++#	sub wanted {
++#	    /^\.nfs.*$/ &&
++#	    (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_)) &&
++#	    int(-M _) > 7 &&
++#	    unlink($_)
++#	    ||
++#	    ($nlink || (($dev,$ino,$mode,$nlink,$uid,$gid) = lstat($_))) &&
++#	    $dev < 0 &&
++#	    ($prune = 1);
++#	}
++
++
++use File::Find ();
++
++*name		= *File::Find::name;
++*prune		= *File::Find::prune;
++*dir		= *File::Find::dir;
++*topdir		= *File::Find::topdir;
++*topdev		= *File::Find::topdev;
++*topino		= *File::Find::topino;
++*topmode	= *File::Find::topmode;
++*topnlink	= *File::Find::topnlink;
++
++sub finddepth {
++    &File::Find::finddepth(\&wanted, @_);
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/flush.pl perl-5.16.3/lib/flush.pl
+--- perl-5.16.3-orig/lib/flush.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/flush.pl	2016-08-18 10:07:06.529441881 +0200
+@@ -0,0 +1,32 @@
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: IO::Handle
++#
++;# Usage: &flush(FILEHANDLE)
++;# flushes the named filehandle
++
++;# Usage: &printflush(FILEHANDLE, "prompt: ")
++;# prints arguments and flushes filehandle
++
++sub flush {
++    local($old) = select(shift);
++    $| = 1;
++    print "";
++    $| = 0;
++    select($old);
++}
++
++sub printflush {
++    local($old) = select(shift);
++    $| = 1;
++    print @_;
++    $| = 0;
++    select($old);
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/getcwd.pl perl-5.16.3/lib/getcwd.pl
+--- perl-5.16.3-orig/lib/getcwd.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/getcwd.pl	2016-08-18 10:07:06.540441833 +0200
+@@ -0,0 +1,71 @@
++# By Brandon S. Allbery
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Cwd
++#
++#
++# Usage: $cwd = &getcwd;
++
++sub getcwd
++{
++    local($dotdots, $cwd, @pst, @cst, $dir, @tst);
++
++    unless (@cst = stat('.'))
++    {
++	warn "stat(.): $!";
++	return '';
++    }
++    $cwd = '';
++    do
++    {
++	$dotdots .= '/' if $dotdots;
++	$dotdots .= '..';
++	@pst = @cst;
++	unless (opendir(getcwd'PARENT, $dotdots))			#'))
++	{
++	    warn "opendir($dotdots): $!";
++	    return '';
++	}
++	unless (@cst = stat($dotdots))
++	{
++	    warn "stat($dotdots): $!";
++	    closedir(getcwd'PARENT);					#');
++	    return '';
++	}
++	if ($pst[$[] == $cst[$[] && $pst[$[ + 1] == $cst[$[ + 1])
++	{
++	    $dir = '';
++	}
++	else
++	{
++	    do
++	    {
++		unless (defined ($dir = readdir(getcwd'PARENT)))        #'))
++		{
++		    warn "readdir($dotdots): $!";
++		    closedir(getcwd'PARENT);				#');
++		    return '';
++		}
++		unless (@tst = lstat("$dotdots/$dir"))
++		{
++		    # warn "lstat($dotdots/$dir): $!";
++		    # closedir(getcwd'PARENT);				#');
++		    # return '';
++		}
++	    }
++	    while ($dir eq '.' || $dir eq '..' || $tst[$[] != $pst[$[] ||
++		   $tst[$[ + 1] != $pst[$[ + 1]);
++	}
++	$cwd = "$dir/$cwd";
++	closedir(getcwd'PARENT);					#');
++    } while ($dir ne '');
++    chop($cwd);
++    $cwd;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/getopt.pl perl-5.16.3/lib/getopt.pl
+--- perl-5.16.3-orig/lib/getopt.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/getopt.pl	2016-08-18 10:07:06.548441797 +0200
+@@ -0,0 +1,49 @@
++;# $RCSfile: getopt.pl,v $$Revision: 4.1 $$Date: 92/08/07 18:23:58 $
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternatives: Getopt::Long or Getopt::Std
++#
++;# Process single-character switches with switch clustering.  Pass one argument
++;# which is a string containing all switches that take an argument.  For each
++;# switch found, sets $opt_x (where x is the switch name) to the value of the
++;# argument, or 1 if no argument.  Switches which take an argument don't care
++;# whether there is a space between the switch and the argument.
++
++;# Usage:
++;#	do Getopt('oDI');  # -o, -D & -I take arg.  Sets opt_* as a side effect.
++
++sub Getopt {
++    local($argumentative) = @_;
++    local($_,$first,$rest);
++    local($[) = 0;
++
++    while (@ARGV && ($_ = $ARGV[0]) =~ /^-(.)(.*)/) {
++	($first,$rest) = ($1,$2);
++	if (index($argumentative,$first) >= $[) {
++	    if ($rest ne '') {
++		shift(@ARGV);
++	    }
++	    else {
++		shift(@ARGV);
++		$rest = shift(@ARGV);
++	    }
++	    ${"opt_$first"} = $rest;
++	}
++	else {
++	    ${"opt_$first"} = 1;
++	    if ($rest ne '') {
++		$ARGV[0] = "-$rest";
++	    }
++	    else {
++		shift(@ARGV);
++	    }
++	}
++    }
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/getopts.pl perl-5.16.3/lib/getopts.pl
+--- perl-5.16.3-orig/lib/getopts.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/getopts.pl	2016-08-18 10:07:06.557441758 +0200
+@@ -0,0 +1,66 @@
++;# getopts.pl - a better getopt.pl
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternatives: Getopt::Long  or  Getopt::Std
++#
++;# Usage:
++;#      do Getopts('a:bc');  # -a takes arg. -b & -c not. Sets opt_* as a
++;#                           #  side effect.
++
++sub Getopts {
++    local($argumentative) = @_;
++    local(@args,$_,$first,$rest);
++    local($errs) = 0;
++    local($[) = 0;
++
++    @args = split( / */, $argumentative );
++    while(@ARGV && ($_ = $ARGV[0]) =~ /^-(.)(.*)/) {
++		($first,$rest) = ($1,$2);
++		$pos = index($argumentative,$first);
++		if($pos >= $[) {
++			if($args[$pos+1] eq ':') {
++				shift(@ARGV);
++				if($rest eq '') {
++					++$errs unless(@ARGV);
++					$rest = shift(@ARGV);
++				}
++				eval "
++				push(\@opt_$first, \$rest);
++				if (!defined \$opt_$first or \$opt_$first eq '') {
++					\$opt_$first = \$rest;
++				}
++				else {
++					\$opt_$first .= ' ' . \$rest;
++				}
++				";
++			}
++			else {
++				eval "\$opt_$first = 1";
++				if($rest eq '') {
++					shift(@ARGV);
++				}
++				else {
++					$ARGV[0] = "-$rest";
++				}
++			}
++		}
++		else {
++			print STDERR "Unknown option: $first\n";
++			++$errs;
++			if($rest ne '') {
++				$ARGV[0] = "-$rest";
++			}
++			else {
++				shift(@ARGV);
++			}
++		}
++	}
++    $errs == 0;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/hostname.pl perl-5.16.3/lib/hostname.pl
+--- perl-5.16.3-orig/lib/hostname.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/hostname.pl	2016-08-18 10:07:06.567441713 +0200
+@@ -0,0 +1,31 @@
++# From: asherman@fmrco.com (Aaron Sherman)
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Sys::Hostname
++#
++sub hostname
++{
++	local(*P,@tmp,$hostname,$_);
++	if (open(P,"hostname 2>&1 |") && (@tmp = <P>) && close(P))
++	{
++		chop($hostname = $tmp[$#tmp]);
++	}
++	elsif (open(P,"uname -n 2>&1 |") && (@tmp = <P>) && close(P))
++	{
++		chop($hostname = $tmp[$#tmp]);
++	}
++	else
++	{
++		die "$0: Cannot get hostname from 'hostname' or 'uname -n'\n";
++	}
++	@tmp = ();
++	close P; # Just in case we failed in an odd spot....
++	$hostname;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/importenv.pl perl-5.16.3/lib/importenv.pl
+--- perl-5.16.3-orig/lib/importenv.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/importenv.pl	2016-08-18 10:07:06.577441669 +0200
+@@ -0,0 +1,14 @@
++;# This file, when interpreted, pulls the environment into normal variables.
++;# Usage:
++;#	require 'importenv.pl';
++;# or
++;#	#include <importenv.pl>
++
++local($tmp,$key) = '';
++
++foreach $key (keys(%ENV)) {
++    $tmp .= "\$$key = \$ENV{'$key'};" if $key =~ /^[A-Za-z]\w*$/;
++}
++eval $tmp;
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/look.pl perl-5.16.3/lib/look.pl
+--- perl-5.16.3-orig/lib/look.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/look.pl	2016-08-18 10:07:06.586441630 +0200
+@@ -0,0 +1,50 @@
++;# Usage: &look(*FILEHANDLE,$key,$dict,$fold)
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++;# Sets file position in FILEHANDLE to be first line greater than or equal
++;# (stringwise) to $key.  Pass flags for dictionary order and case folding.
++
++sub look {
++    local(*FH,$key,$dict,$fold) = @_;
++    local($max,$min,$mid,$_);
++    local($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,
++       $blksize,$blocks) = stat(FH);
++    $blksize = 8192 unless $blksize;
++    $key =~ s/[^\w\s]//g if $dict;
++    $key = lc $key if $fold;
++    $max = int($size / $blksize);
++    while ($max - $min > 1) {
++	$mid = int(($max + $min) / 2);
++	seek(FH,$mid * $blksize,0);
++	$_ = <FH> if $mid;		# probably a partial line
++	$_ = <FH>;
++	chop;
++	s/[^\w\s]//g if $dict;
++	$_ = lc $_ if $fold;
++	if ($_ lt $key) {
++	    $min = $mid;
++	}
++	else {
++	    $max = $mid;
++	}
++    }
++    $min *= $blksize;
++    seek(FH,$min,0);
++    <FH> if $min;
++    while (<FH>) {
++	chop;
++	s/[^\w\s]//g if $dict;
++	$_ = lc $_ if $fold;
++	last if $_ ge $key;
++	$min = tell(FH);
++    }
++    seek(FH,$min,0);
++    $min;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/newgetopt.pl perl-5.16.3/lib/newgetopt.pl
+--- perl-5.16.3-orig/lib/newgetopt.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/newgetopt.pl	2016-08-18 10:07:06.595441590 +0200
+@@ -0,0 +1,75 @@
++# $Id: newgetopt.pl,v 1.18 2001/09/21 13:34:59 jv Exp $
++
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++# It is now just a wrapper around the Getopt::Long module.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Getopt::Long
++
++{   package newgetopt;
++
++    # Values for $order. See GNU getopt.c for details.
++    $REQUIRE_ORDER = 0;
++    $PERMUTE = 1;
++    $RETURN_IN_ORDER = 2;
++
++    # Handle POSIX compliancy.
++    if ( defined $ENV{"POSIXLY_CORRECT"} ) {
++	$autoabbrev = 0;	# no automatic abbrev of options (???)
++	$getopt_compat = 0;	# disallow '+' to start options
++	$option_start = "(--|-)";
++	$order = $REQUIRE_ORDER;
++	$bundling = 0;
++	$passthrough = 0;
++    }
++    else {
++	$autoabbrev = 1;	# automatic abbrev of options
++	$getopt_compat = 1;	# allow '+' to start options
++	$option_start = "(--|-|\\+)";
++	$order = $PERMUTE;
++	$bundling = 0;
++	$passthrough = 0;
++    }
++
++    # Other configurable settings.
++    $debug = 0;			# for debugging
++    $ignorecase = 1;		# ignore case when matching options
++    $argv_end = "--";		# don't change this!
++}
++
++use Getopt::Long;
++
++################ Subroutines ################
++
++sub NGetOpt {
++
++    $Getopt::Long::debug = $newgetopt::debug 
++	if defined $newgetopt::debug;
++    $Getopt::Long::autoabbrev = $newgetopt::autoabbrev 
++	if defined $newgetopt::autoabbrev;
++    $Getopt::Long::getopt_compat = $newgetopt::getopt_compat 
++	if defined $newgetopt::getopt_compat;
++    $Getopt::Long::option_start = $newgetopt::option_start 
++	if defined $newgetopt::option_start;
++    $Getopt::Long::order = $newgetopt::order 
++	if defined $newgetopt::order;
++    $Getopt::Long::bundling = $newgetopt::bundling 
++	if defined $newgetopt::bundling;
++    $Getopt::Long::ignorecase = $newgetopt::ignorecase 
++	if defined $newgetopt::ignorecase;
++    $Getopt::Long::ignorecase = $newgetopt::ignorecase 
++	if defined $newgetopt::ignorecase;
++    $Getopt::Long::passthrough = $newgetopt::passthrough 
++	if defined $newgetopt::passthrough;
++
++    &GetOptions;
++}
++
++################ Package return ################
++
++1;
++
++################ End of newgetopt.pl ################
+diff -ENwbur perl-5.16.3-orig/lib/open2.pl perl-5.16.3/lib/open2.pl
+--- perl-5.16.3-orig/lib/open2.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/open2.pl	2016-08-18 10:07:06.605441546 +0200
+@@ -0,0 +1,12 @@
++# This is a compatibility interface to IPC::Open2.  New programs should
++# do
++#
++#     use IPC::Open2;
++#
++# instead of
++#
++#     require 'open2.pl';
++
++package main;
++use IPC::Open2 'open2';
++1
+diff -ENwbur perl-5.16.3-orig/lib/open3.pl perl-5.16.3/lib/open3.pl
+--- perl-5.16.3-orig/lib/open3.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/open3.pl	2016-08-18 10:07:06.615441502 +0200
+@@ -0,0 +1,12 @@
++# This is a compatibility interface to IPC::Open3.  New programs should
++# do
++#
++#     use IPC::Open3;
++#
++# instead of
++#
++#     require 'open3.pl';
++
++package main;
++use IPC::Open3 'open3';
++1
+diff -ENwbur perl-5.16.3-orig/lib/pwd.pl perl-5.16.3/lib/pwd.pl
+--- perl-5.16.3-orig/lib/pwd.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/pwd.pl	2016-08-18 10:07:06.625441458 +0200
+@@ -0,0 +1,67 @@
++;# pwd.pl - keeps track of current working directory in PWD environment var
++;#
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Cwd
++#
++;# $RCSfile: pwd.pl,v $$Revision: 4.1 $$Date: 92/08/07 18:24:11 $
++;#
++;# $Log:	pwd.pl,v $
++;#
++;# Usage:
++;#	require "pwd.pl";
++;#	&initpwd;
++;#	...
++;#	&chdir($newdir);
++
++package pwd;
++
++sub main'initpwd {
++    if ($ENV{'PWD'}) {
++	local($dd,$di) = stat('.');
++	local($pd,$pi) = stat($ENV{'PWD'});
++	if (!defined $dd or !defined $pd or $di != $pi or $dd != $pd) {
++	    chop($ENV{'PWD'} = `pwd`);
++	}
++    }
++    else {
++	chop($ENV{'PWD'} = `pwd`);
++    }
++    if ($ENV{'PWD'} =~ m|(/[^/]+(/[^/]+/[^/]+))(.*)|) {
++	local($pd,$pi) = stat($2);
++	local($dd,$di) = stat($1);
++	if (defined $pd and defined $dd and $di == $pi and $dd == $pd) {
++	    $ENV{'PWD'}="$2$3";
++	}
++    }
++}
++
++sub main'chdir {
++    local($newdir) = shift;
++    $newdir =~ s|/{2,}|/|g;
++    if (chdir $newdir) {
++	if ($newdir =~ m#^/#) {
++	    $ENV{'PWD'} = $newdir;
++	}
++	else {
++	    local(@curdir) = split(m#/#,$ENV{'PWD'});
++	    @curdir = '' unless @curdir;
++	    foreach $component (split(m#/#, $newdir)) {
++		next if $component eq '.';
++		pop(@curdir),next if $component eq '..';
++		push(@curdir,$component);
++	    }
++	    $ENV{'PWD'} = join('/',@curdir) || '/';
++	}
++    }
++    else {
++	0;
++    }
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/shellwords.pl perl-5.16.3/lib/shellwords.pl
+--- perl-5.16.3-orig/lib/shellwords.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/shellwords.pl	2016-08-18 10:07:06.635441413 +0200
+@@ -0,0 +1,14 @@
++;# shellwords.pl
++;#
++;# Usage:
++;#	require 'shellwords.pl';
++;#	@words = shellwords($line);
++;#	or
++;#	@words = shellwords(@lines);
++;#	or
++;#	@words = shellwords();		# defaults to $_ (and clobbers it)
++
++require Text::ParseWords;
++*shellwords = \&Text::ParseWords::old_shellwords;
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/stat.pl perl-5.16.3/lib/stat.pl
+--- perl-5.16.3-orig/lib/stat.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/stat.pl	2016-08-18 10:07:06.644441374 +0200
+@@ -0,0 +1,29 @@
++;# Usage:
++;#	require 'stat.pl';
++;#	@ary = stat(foo);
++;#	$st_dev = @ary[$ST_DEV];
++;#
++$ST_DEV =	0 + $[;
++$ST_INO =	1 + $[;
++$ST_MODE =	2 + $[;
++$ST_NLINK =	3 + $[;
++$ST_UID =	4 + $[;
++$ST_GID =	5 + $[;
++$ST_RDEV =	6 + $[;
++$ST_SIZE =	7 + $[;
++$ST_ATIME =	8 + $[;
++$ST_MTIME =	9 + $[;
++$ST_CTIME =	10 + $[;
++$ST_BLKSIZE =	11 + $[;
++$ST_BLOCKS =	12 + $[;
++
++;# Usage:
++;#	require 'stat.pl';
++;#	do Stat('foo');		# sets st_* as a side effect
++;#
++sub Stat {
++    ($st_dev,$st_ino,$st_mode,$st_nlink,$st_uid,$st_gid,$st_rdev,$st_size,
++	$st_atime,$st_mtime,$st_ctime,$st_blksize,$st_blocks) = stat(shift(@_));
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/syslog.pl perl-5.16.3/lib/syslog.pl
+--- perl-5.16.3-orig/lib/syslog.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/syslog.pl	2016-08-18 10:07:06.656441321 +0200
+@@ -0,0 +1,199 @@
++#
++# syslog.pl
++#
++# $Log:	syslog.pl,v $
++# 
++# tom christiansen <tchrist@convex.com>
++# modified to use sockets by Larry Wall <lwall@jpl-devvax.jpl.nasa.gov>
++# NOTE: openlog now takes three arguments, just like openlog(3)
++#
++# call syslog() with a string priority and a list of printf() args
++# like syslog(3)
++#
++#  usage: require 'syslog.pl';
++#
++#  then (put these all in a script to test function)
++#		
++#
++#	do openlog($program,'cons,pid','user');
++#	do syslog('info','this is another test');
++#	do syslog('mail|warning','this is a better test: %d', time);
++#	do closelog();
++#	
++#	do syslog('debug','this is the last test');
++#	do openlog("$program $$",'ndelay','user');
++#	do syslog('notice','fooprogram: this is really done');
++#
++#	$! = 55;
++#	do syslog('info','problem was %m'); # %m == $! in syslog(3)
++
++package syslog;
++
++use warnings::register;
++
++$host = 'localhost' unless $host;	# set $syslog'host to change
++
++if ($] >= 5 && warnings::enabled()) {
++    warnings::warn("You should 'use Sys::Syslog' instead; continuing");
++} 
++
++require 'syslog.ph';
++
++ eval 'use Socket; 1' 			||
++     eval { require "socket.ph" } 	||
++     require "sys/socket.ph";
++
++$maskpri = &LOG_UPTO(&LOG_DEBUG);
++
++sub main'openlog {
++    ($ident, $logopt, $facility) = @_;  # package vars
++    $lo_pid = $logopt =~ /\bpid\b/;
++    $lo_ndelay = $logopt =~ /\bndelay\b/;
++    $lo_cons = $logopt =~ /\bcons\b/;
++    $lo_nowait = $logopt =~ /\bnowait\b/;
++    &connect if $lo_ndelay;
++} 
++
++sub main'closelog {
++    $facility = $ident = '';
++    &disconnect;
++} 
++
++sub main'setlogmask {
++    local($oldmask) = $maskpri;
++    $maskpri = shift;
++    $oldmask;
++}
++ 
++sub main'syslog {
++    local($priority) = shift;
++    local($mask) = shift;
++    local($message, $whoami);
++    local(@words, $num, $numpri, $numfac, $sum);
++    local($facility) = $facility;	# may need to change temporarily.
++
++    die "syslog: expected both priority and mask" unless $mask && $priority;
++
++    @words = split(/\W+/, $priority, 2);# Allow "level" or "level|facility".
++    undef $numpri;
++    undef $numfac;
++    foreach (@words) {
++	$num = &xlate($_);		# Translate word to number.
++	if (/^kern$/ || $num < 0) {
++	    die "syslog: invalid level/facility: $_\n";
++	}
++	elsif ($num <= &LOG_PRIMASK) {
++	    die "syslog: too many levels given: $_\n" if defined($numpri);
++	    $numpri = $num;
++	    return 0 unless &LOG_MASK($numpri) & $maskpri;
++	}
++	else {
++	    die "syslog: too many facilities given: $_\n" if defined($numfac);
++	    $facility = $_;
++	    $numfac = $num;
++	}
++    }
++
++    die "syslog: level must be given\n" unless defined($numpri);
++
++    if (!defined($numfac)) {	# Facility not specified in this call.
++	$facility = 'user' unless $facility;
++	$numfac = &xlate($facility);
++    }
++
++    &connect unless $connected;
++
++    $whoami = $ident;
++
++    if (!$ident && $mask =~ /^(\S.*):\s?(.*)/) {
++	$whoami = $1;
++	$mask = $2;
++    } 
++
++    unless ($whoami) {
++	($whoami = getlogin) ||
++	    ($whoami = getpwuid($<)) ||
++		($whoami = 'syslog');
++    }
++
++    $whoami .= "[$$]" if $lo_pid;
++
++    $mask =~ s/%m/$!/g;
++    $mask .= "\n" unless $mask =~ /\n$/;
++    $message = sprintf ($mask, @_);
++
++    $sum = $numpri + $numfac;
++    unless (send(SYSLOG,"<$sum>$whoami: $message",0)) {
++	if ($lo_cons) {
++	    if ($pid = fork) {
++		unless ($lo_nowait) {
++		    do {$died = wait;} until $died == $pid || $died < 0;
++		}
++	    }
++	    else {
++		open(CONS,">/dev/console");
++		print CONS "<$facility.$priority>$whoami: $message\r";
++		exit if defined $pid;		# if fork failed, we're parent
++		close CONS;
++	    }
++	}
++    }
++}
++
++sub xlate {
++    local($name) = @_;
++    $name = uc $name;
++    $name = "LOG_$name" unless $name =~ /^LOG_/;
++    $name = "syslog'$name";
++    defined &$name ? &$name : -1;
++}
++
++sub connect {
++    $pat = 'S n C4 x8';
++
++    $af_unix = &AF_UNIX;
++    $af_inet = &AF_INET;
++
++    $stream = &SOCK_STREAM;
++    $datagram = &SOCK_DGRAM;
++
++    ($name,$aliases,$proto) = getprotobyname('udp');
++    $udp = $proto;
++
++    ($name,$aliases,$port,$proto) = getservbyname('syslog','udp');
++    $syslog = $port;
++
++    if (chop($myname = `hostname`)) {
++	($name,$aliases,$addrtype,$length,@addrs) = gethostbyname($myname);
++	die "Can't lookup $myname\n" unless $name;
++	@bytes = unpack("C4",$addrs[0]);
++    }
++    else {
++	@bytes = (0,0,0,0);
++    }
++    $this = pack($pat, $af_inet, 0, @bytes);
++
++    if ($host =~ /^\d+\./) {
++	@bytes = split(/\./,$host);
++    }
++    else {
++	($name,$aliases,$addrtype,$length,@addrs) = gethostbyname($host);
++	die "Can't lookup $host\n" unless $name;
++	@bytes = unpack("C4",$addrs[0]);
++    }
++    $that = pack($pat,$af_inet,$syslog,@bytes);
++
++    socket(SYSLOG,$af_inet,$datagram,$udp) || die "socket: $!\n";
++    bind(SYSLOG,$this) || die "bind: $!\n";
++    connect(SYSLOG,$that) || die "connect: $!\n";
++
++    local($old) = select(SYSLOG); $| = 1; select($old);
++    $connected = 1;
++}
++
++sub disconnect {
++    close SYSLOG;
++    $connected = 0;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/tainted.pl perl-5.16.3/lib/tainted.pl
+--- perl-5.16.3-orig/lib/tainted.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/tainted.pl	2016-08-18 10:07:06.670441259 +0200
+@@ -0,0 +1,9 @@
++# This subroutine returns true if its argument is tainted, false otherwise.
++
++sub tainted {
++    local($@);
++    eval { kill 0 * $_[0] };
++    $@ =~ /^Insecure/;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/termcap.pl perl-5.16.3/lib/termcap.pl
+--- perl-5.16.3-orig/lib/termcap.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/termcap.pl	2016-08-18 10:07:06.678441224 +0200
+@@ -0,0 +1,178 @@
++;# $RCSfile: termcap.pl,v $$Revision: 4.1 $$Date: 92/08/07 18:24:16 $
++#
++# This library is no longer being maintained, and is included for backward
++# compatibility with Perl 4 programs which may require it.
++#
++# In particular, this should not be used as an example of modern Perl
++# programming techniques.
++#
++# Suggested alternative: Term::Cap
++#
++;#
++;# Usage:
++;#	require 'ioctl.pl';
++;#	ioctl(TTY,$TIOCGETP,$foo);
++;#	($ispeed,$ospeed) = unpack('cc',$foo);
++;#	require 'termcap.pl';
++;#	&Tgetent('vt100');	# sets $TC{'cm'}, etc.
++;#	&Tputs(&Tgoto($TC{'cm'},$col,$row), 0, 'FILEHANDLE');
++;#	&Tputs($TC{'dl'},$affcnt,'FILEHANDLE');
++;#
++sub Tgetent {
++    local($TERM) = @_;
++    local($TERMCAP,$_,$entry,$loop,$field);
++
++    # warn "Tgetent: no ospeed set" unless $ospeed;
++    foreach $key (keys %TC) {
++	delete $TC{$key};
++    }
++    $TERM = $ENV{'TERM'} unless $TERM;
++    $TERM =~ s/(\W)/\\$1/g;
++    $TERMCAP = $ENV{'TERMCAP'};
++    $TERMCAP = '/etc/termcap' unless $TERMCAP;
++    if ($TERMCAP !~ m:^/:) {
++	if ($TERMCAP !~ /(^|\|)$TERM[:\|]/) {
++	    $TERMCAP = '/etc/termcap';
++	}
++    }
++    if ($TERMCAP =~ m:^/:) {
++	$entry = '';
++	do {
++	    $loop = "
++	    open(TERMCAP,'<$TERMCAP') || die \"Can't open $TERMCAP\";
++	    while (<TERMCAP>) {
++		next if /^#/;
++		next if /^\t/;
++		if (/(^|\\|)${TERM}[:\\|]/) {
++		    chop;
++		    while (chop eq '\\\\') {
++			\$_ .= <TERMCAP>;
++			chop;
++		    }
++		    \$_ .= ':';
++		    last;
++		}
++	    }
++	    close TERMCAP;
++	    \$entry .= \$_;
++	    ";
++	    eval $loop;
++	} while s/:tc=([^:]+):/:/ && ($TERM = $1);
++	$TERMCAP = $entry;
++    }
++
++    foreach $field (split(/:[\s:\\]*/,$TERMCAP)) {
++	if ($field =~ /^\w\w$/) {
++	    $TC{$field} = 1;
++	}
++	elsif ($field =~ /^(\w\w)#(.*)/) {
++	    $TC{$1} = $2 if $TC{$1} eq '';
++	}
++	elsif ($field =~ /^(\w\w)=(.*)/) {
++	    $entry = $1;
++	    $_ = $2;
++	    s/\\E/\033/g;
++	    s/\\(200)/pack('c',0)/eg;			# NUL character
++	    s/\\(0\d\d)/pack('c',oct($1))/eg;	# octal
++	    s/\\(0x[0-9A-Fa-f][0-9A-Fa-f])/pack('c',hex($1))/eg;	# hex
++	    s/\\(\d\d\d)/pack('c',$1 & 0177)/eg;
++	    s/\\n/\n/g;
++	    s/\\r/\r/g;
++	    s/\\t/\t/g;
++	    s/\\b/\b/g;
++	    s/\\f/\f/g;
++	    s/\\\^/\377/g;
++	    s/\^\?/\177/g;
++	    s/\^(.)/pack('c',ord($1) & 31)/eg;
++	    s/\\(.)/$1/g;
++	    s/\377/^/g;
++	    $TC{$entry} = $_ if $TC{$entry} eq '';
++	}
++    }
++    $TC{'pc'} = "\0" if $TC{'pc'} eq '';
++    $TC{'bc'} = "\b" if $TC{'bc'} eq '';
++}
++
++@Tputs = (0,200,133.3,90.9,74.3,66.7,50,33.3,16.7,8.3,5.5,4.1,2,1,.5,.2);
++
++sub Tputs {
++    local($string,$affcnt,$FH) = @_;
++    local($ms);
++    if ($string =~ /(^[\d.]+)(\*?)(.*)$/) {
++	$ms = $1;
++	$ms *= $affcnt if $2;
++	$string = $3;
++	$decr = $Tputs[$ospeed];
++	if ($decr > .1) {
++	    $ms += $decr / 2;
++	    $string .= $TC{'pc'} x ($ms / $decr);
++	}
++    }
++    print $FH $string if $FH;
++    $string;
++}
++
++sub Tgoto {
++    local($string) = shift(@_);
++    local($result) = '';
++    local($after) = '';
++    local($code,$tmp) = @_;
++    local(@tmp);
++    @tmp = ($tmp,$code);
++    local($online) = 0;
++    while ($string =~ /^([^%]*)%(.)(.*)/) {
++	$result .= $1;
++	$code = $2;
++	$string = $3;
++	if ($code eq 'd') {
++	    $result .= sprintf("%d",shift(@tmp));
++	}
++	elsif ($code eq '.') {
++	    $tmp = shift(@tmp);
++	    if ($tmp == 0 || $tmp == 4 || $tmp == 10) {
++		if ($online) {
++		    ++$tmp, $after .= $TC{'up'} if $TC{'up'};
++		}
++		else {
++		    ++$tmp, $after .= $TC{'bc'};
++		}
++	    }
++	    $result .= sprintf("%c",$tmp);
++	    $online = !$online;
++	}
++	elsif ($code eq '+') {
++	    $result .= sprintf("%c",shift(@tmp)+ord($string));
++	    $string = substr($string,1,99);
++	    $online = !$online;
++	}
++	elsif ($code eq 'r') {
++	    ($code,$tmp) = @tmp;
++	    @tmp = ($tmp,$code);
++	    $online = !$online;
++	}
++	elsif ($code eq '>') {
++	    ($code,$tmp,$string) = unpack("CCa99",$string);
++	    if ($tmp[$[] > $code) {
++		$tmp[$[] += $tmp;
++	    }
++	}
++	elsif ($code eq '2') {
++	    $result .= sprintf("%02d",shift(@tmp));
++	    $online = !$online;
++	}
++	elsif ($code eq '3') {
++	    $result .= sprintf("%03d",shift(@tmp));
++	    $online = !$online;
++	}
++	elsif ($code eq 'i') {
++	    ($code,$tmp) = @tmp;
++	    @tmp = ($code+1,$tmp+1);
++	}
++	else {
++	    return "OOPS";
++	}
++    }
++    $result . $string . $after;
++}
++
++1;
+diff -ENwbur perl-5.16.3-orig/lib/timelocal.pl perl-5.16.3/lib/timelocal.pl
+--- perl-5.16.3-orig/lib/timelocal.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/timelocal.pl	2016-08-18 10:07:06.689441175 +0200
+@@ -0,0 +1,18 @@
++;# timelocal.pl
++;#
++;# Usage:
++;#	$time = timelocal($sec,$min,$hours,$mday,$mon,$year);
++;#	$time = timegm($sec,$min,$hours,$mday,$mon,$year);
++
++;# This file has been superseded by the Time::Local library module.
++;# It is implemented as a call to that module for backwards compatibility
++;# with code written for perl4; new code should use Time::Local directly.
++
++;# The current implementation shares with the original the questionable
++;# behavior of defining the timelocal() and timegm() functions in the
++;# namespace of whatever package was current when the first instance of
++;# C<require 'timelocal.pl';> was executed in a program.
++
++use Time::Local;
++
++*timelocal::cheat = \&Time::Local::cheat;
+diff -ENwbur perl-5.16.3-orig/lib/validate.pl perl-5.16.3/lib/validate.pl
+--- perl-5.16.3-orig/lib/validate.pl	1970-01-01 01:00:00.000000000 +0100
++++ perl-5.16.3/lib/validate.pl	2016-08-18 10:07:06.696441144 +0200
+@@ -0,0 +1,102 @@
++;# The validate routine takes a single multiline string consisting of
++;# lines containing a filename plus a file test to try on it.  (The
++;# file test may also be a 'cd', causing subsequent relative filenames
++;# to be interpreted relative to that directory.)  After the file test
++;# you may put '|| die' to make it a fatal error if the file test fails.
++;# The default is '|| warn'.  The file test may optionally have a ! prepended
++;# to test for the opposite condition.  If you do a cd and then list some
++;# relative filenames, you may want to indent them slightly for readability.
++;# If you supply your own "die" or "warn" message, you can use $file to
++;# interpolate the filename.
++
++;# Filetests may be bunched:  -rwx tests for all of -r, -w and -x.
++;# Only the first failed test of the bunch will produce a warning.
++
++;# The routine returns the number of warnings issued.
++
++;# Usage:
++;#	require "validate.pl";
++;#	$warnings += do validate('
++;#	/vmunix			-e || die
++;#	/boot			-e || die
++;#	/bin			cd
++;#	    csh			-ex
++;#	    csh			!-ug
++;#	    sh			-ex
++;#	    sh			!-ug
++;#	/usr			-d || warn "What happened to $file?\n"
++;#	');
++
++sub validate {
++    local($file,$test,$warnings,$oldwarnings);
++    foreach $check (split(/\n/,$_[0])) {
++	next if $check =~ /^#/;
++	next if $check =~ /^$/;
++	($file,$test) = split(' ',$check,2);
++	if ($test =~ s/^(!?-)(\w{2,}\b)/$1Z/) {
++	    $testlist = $2;
++	    @testlist = split(//,$testlist);
++	}
++	else {
++	    @testlist = ('Z');
++	}
++	$oldwarnings = $warnings;
++	foreach $one (@testlist) {
++	    $this = $test;
++	    $this =~ s/(-\w\b)/$1 \$file/g;
++	    $this =~ s/-Z/-$one/;
++	    $this .= ' || warn' unless $this =~ /\|\|/;
++	    $this =~ s/^(.*\S)\s*\|\|\s*(die|warn)$/$1 || do valmess('$2','$1')/;
++	    $this =~ s/\bcd\b/chdir (\$cwd = \$file)/g;
++	    eval $this;
++	    last if $warnings > $oldwarnings;
++	}
++    }
++    $warnings;
++}
++
++sub valmess {
++    local($disposition,$this) = @_;
++    $file = $cwd . '/' . $file unless $file =~ m|^/|;
++    if ($this =~ /^(!?)-(\w)\s+\$file\s*$/) {
++	$neg = $1;
++	$tmp = $2;
++	$tmp eq 'r' && ($mess = "$file is not readable by uid $>.");
++	$tmp eq 'w' && ($mess = "$file is not writable by uid $>.");
++	$tmp eq 'x' && ($mess = "$file is not executable by uid $>.");
++	$tmp eq 'o' && ($mess = "$file is not owned by uid $>.");
++	$tmp eq 'R' && ($mess = "$file is not readable by you.");
++	$tmp eq 'W' && ($mess = "$file is not writable by you.");
++	$tmp eq 'X' && ($mess = "$file is not executable by you.");
++	$tmp eq 'O' && ($mess = "$file is not owned by you.");
++	$tmp eq 'e' && ($mess = "$file does not exist.");
++	$tmp eq 'z' && ($mess = "$file does not have zero size.");
++	$tmp eq 's' && ($mess = "$file does not have non-zero size.");
++	$tmp eq 'f' && ($mess = "$file is not a plain file.");
++	$tmp eq 'd' && ($mess = "$file is not a directory.");
++	$tmp eq 'l' && ($mess = "$file is not a symbolic link.");
++	$tmp eq 'p' && ($mess = "$file is not a named pipe (FIFO).");
++	$tmp eq 'S' && ($mess = "$file is not a socket.");
++	$tmp eq 'b' && ($mess = "$file is not a block special file.");
++	$tmp eq 'c' && ($mess = "$file is not a character special file.");
++	$tmp eq 'u' && ($mess = "$file does not have the setuid bit set.");
++	$tmp eq 'g' && ($mess = "$file does not have the setgid bit set.");
++	$tmp eq 'k' && ($mess = "$file does not have the sticky bit set.");
++	$tmp eq 'T' && ($mess = "$file is not a text file.");
++	$tmp eq 'B' && ($mess = "$file is not a binary file.");
++	if ($neg eq '!') {
++	    $mess =~ s/ is not / should not be / ||
++	    $mess =~ s/ does not / should not / ||
++	    $mess =~ s/ not / /;
++	}
++	print STDERR $mess,"\n";
++    }
++    else {
++	$this =~ s/\$file/'$file'/g;
++	print STDERR "Can't do $this.\n";
++    }
++    if ($disposition eq 'die') { exit 1; }
++    ++$warnings;
++}
++
++1;
