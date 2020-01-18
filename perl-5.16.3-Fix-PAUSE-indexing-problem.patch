@@ -1,0 +1,69 @@
+From 23d7f6ae0009ab5f2aa9887d1204a98de7fd2326 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20P=C3=ADsa=C5=99?= <ppisar@redhat.com>
+Date: Wed, 21 Mar 2018 14:50:08 +0100
+Subject: [PATCH 3/4] Fix PAUSE indexing problem
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Ported to Net::SMTP as found in Perl 5.16.3 from libnet upstream
+commits:
+
+commit 4b426b971e4acf37fdbd08ffa88da4e6979fa133
+Author: Steve Hay <steve.m.hay@googlemail.com>
+Date:   Wed Oct 8 08:57:53 2014 +0100
+
+    Fix PAUSE indexing problem
+
+    Net::POP3::_SSLified and Net::SMTP::_SSLified are already used by
+    Net-SSLGlue.
+
+commit 40a3dfc5c40a7fbe0a777a4af50978354e4903f4
+Author: Steve Hay <steve.m.hay@googlemail.com>
+Date:   Wed Oct 8 09:11:31 2014 +0100
+
+    Fix PAUSE indexing problem again
+
+    Sigh. Net::SMTP::SSL is already used by Net-SMTP-SSL.
+
+This is to avoid clashes in name space when somebody uses Net-SSLGlue.
+
+Signed-off-by: Petr Písař <ppisar@redhat.com>
+---
+ cpan/libnet/Net/SMTP.pm | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/cpan/libnet/Net/SMTP.pm b/cpan/libnet/Net/SMTP.pm
+index 7dbf3df..6475c86 100644
+--- a/cpan/libnet/Net/SMTP.pm
++++ b/cpan/libnet/Net/SMTP.pm
+@@ -72,7 +72,7 @@ sub new {
+ 
+   ${*$obj}{'net_smtp_arg'} = \%arg;
+   if ($arg{SSL}) {
+-    Net::SMTP::_SSLified->start_SSL($obj,SSL_verifycn_name => $host,%arg)
++    Net::SMTP::_SSL->start_SSL($obj,SSL_verifycn_name => $host,%arg)
+       or return;
+   }
+ 
+@@ -217,7 +217,7 @@ sub starttls {
+   my $self = shift;
+   $ssl_class or die $nossl_warn;
+   $self->_STARTTLS or return;
+-  Net::SMTP::_SSLified->start_SSL($self,
++  Net::SMTP::_SSL->start_SSL($self,
+     %{ ${*$self}{'net_smtp_arg'} }, # (ssl) args given in new
+     @_   # more (ssl) args
+   ) or return;
+@@ -567,7 +567,7 @@ sub _STARTTLS { shift->command("STARTTLS", @_)->response() == CMD_OK }
+ 
+ 
+ {
+-  package Net::SMTP::_SSLified;
++  package Net::SMTP::_SSL;
+   our @ISA = ( $ssl_class ? ($ssl_class):(), 'Net::SMTP' );
+   sub starttls { die "SMTP connection is already in SSL mode" }
+   sub start_SSL {
+-- 
+2.14.3
+

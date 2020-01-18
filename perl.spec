@@ -31,7 +31,7 @@
 Name:           perl
 Version:        %{perl_version}
 # release number must be even higher, because dual-lived modules will be broken otherwise
-Release:        291%{?dist}
+Release:        294%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -165,9 +165,19 @@ Patch36:        perl-5.20.3-Don-t-leak-the-temp-utf8-copy-of-n.patch
 # RT#31923, in upstream after 5.23.3
 Patch37:        perl-5.16.3-Properly-duplicate-PerlIO-encoding-objects.patch
 
-# Backported libraries historically supplied with Perl 4 from Perl 5.10.1.
-# It is used as a workaround before adding perl-Perl4-CoreLibs to RHEL 7
-Patch38:        Backport-Perl4-CoreLibs.patch
+# Add SSL support to Net::SMTP, bug #1557574, CPAN RT#93823
+Patch38:        perl-5.16.3-SSL-support-for-Net-SMTP.patch
+Patch39:        perl-5.16.3-added-tests-for-Net-SMTP-SSL-save-arguments-in-Net-S.patch
+Patch40:        perl-5.16.3-Fix-PAUSE-indexing-problem.patch
+Patch41:        perl-5.16.3-use-SNI-for-SSL-support-in-SMTP.patch
+
+# Do not overload ".." in Math::BigInt, bug #1497734, CPAN RT#80182,
+# fixed in Math-BigInt-1.999718
+Patch42:        perl-5.16.3-Fix-Math-BigInt-overload-warning.patch
+
+# Fix an integer wrap when allocating memory for an environment variable,
+# RT#133204, in upstream after 5.29.0 - CVE-2018-18311
+Patch43:        perl-5.16.3-Perl_my_setenv-handle-integer-wrap.patch
 
 # Update some of the bundled modules
 # see http://fedoraproject.org/wiki/Perl/perl.spec for instructions
@@ -186,6 +196,11 @@ BuildRequires:  procps, rsyslog
 
 # compat macro needed for rebuild
 %global perl_compat perl(:MODULE_COMPAT_5.16.3)
+
+# perl-interpreter denotes a package with the perl executable.
+# Full EVR is for compatibility with systems that swapped perl and perl-core
+# <https://fedoraproject.org/wiki/Changes/perl_Package_to_Install_Core_Modules>.
+Provides: perl-interpreter = %{perl_epoch}:%{perl_version}-%{release}
 
 # Compat provides
 Provides: %perl_compat
@@ -238,6 +253,8 @@ handle Perl scripts.
 Summary:        The libraries for the perl runtime
 Group:          Development/Languages
 License:        GPL+ or Artistic
+# Interpreter version to fulfil requires based on "require 5.006;"
+Provides:       perl(:VERSION) = %{perl_version}
 Requires:       %perl_compat
 
 %description libs
@@ -1376,61 +1393,6 @@ Parse::CPAN::Meta is a parser for META.yml files, based on the parser half of
 YAML::Tiny.
 %endif
 
-%package Perl4-CoreLibs
-Summary:        Libraries historically supplied with Perl 4
-Version:        0.001
-Epoch:          0
-License:        GPL+ or Artistic
-Group:          Development/Libraries
-BuildArch:      noarch
-Requires:       %perl_compat
-Requires:       perl(File::Find)
-Requires:       perl(IPC::Open2)
-Requires:       perl(IPC::Open3)
-Requires:       perl(Socket)
-Requires:       perl(Text::ParseWords) >= 3.25
-Requires:       perl(Time::Local)
-Requires:       perl(warnings::register)
-Provides:       perl(abbrev.pl)
-Provides:       perl(assert.pl)
-Provides:       perl(bigfloat.pl)
-Provides:       perl(bigint.pl)
-Provides:       perl(bigrat.pl)
-Provides:       perl(cacheout.pl)
-Provides:       perl(complete.pl)
-Provides:       perl(ctime.pl)
-Provides:       perl(dotsh.pl)
-Provides:       perl(exceptions.pl)
-Provides:       perl(fastcwd.pl)
-Provides:       perl(find.pl)
-Provides:       perl(finddepth.pl)
-Provides:       perl(flush.pl)
-Provides:       perl(getcwd.pl)
-Provides:       perl(getopt.pl)
-Provides:       perl(getopts.pl)
-Provides:       perl(hostname.pl)
-Provides:       perl(importenv.pl)
-Provides:       perl(look.pl)
-Provides:       perl(newgetopt.pl)
-Provides:       perl(open2.pl)
-Provides:       perl(open3.pl)
-Provides:       perl(pwd.pl)
-Provides:       perl(shellwords.pl)
-Provides:       perl(stat.pl)
-Provides:       perl(syslog.pl)
-Provides:       perl(tainted.pl)
-Provides:       perl(termcap.pl)
-Provides:       perl(timelocal.pl)
-Provides:       perl(validate.pl)
-
-%description Perl4-CoreLibs
-This is a collection of .pl files that have historically been bundled with the
-Perl core and were removed from perl 5.16.  These files should not be used by
-new code.  Functionally, most have been directly superseded by modules in the
-Perl 5 style. This collection exists to support old Perl programs that
-predates satisfactory replacements.
-
-
 %if %{dual_life} || %{rebuild_from_scratch}
 %package Perl-OSType
 Summary:        Map Perl operating system names to generic types
@@ -2014,6 +1976,11 @@ tarball from perl.org.
 %patch36 -p1
 %patch37 -p1
 %patch38 -p1
+%patch39 -p1
+%patch40 -p1
+%patch41 -p1
+%patch42 -p1
+%patch43 -p1
 
 %if !%{defined perl_bootstrap}
 # Local patch tracking
@@ -2053,7 +2020,12 @@ perl -x patchlevel.h \
     'RHEL Patch35: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
     'RHEL Patch36: Do not leak the temp utf8 copy of namepv (CPAN RT#123786)' \
     'RHEL Patch37: Fix duplicating PerlIO::encoding when spawning threads (RT#31923)' \
-    'RHEL Patch38: Backported libraries historically supplied with Perl 4' \
+    'RHEL Patch38: Add SSL support to Net::SMTP (CPAN RT#93823) [1]' \
+    'RHEL Patch39: Add SSL support to Net::SMTP (CPAN RT#93823) [2]' \
+    'RHEL Patch40: Add SSL support to Net::SMTP (CPAN RT#93823) [3]' \
+    'RHEL Patch41: Add SSL support to Net::SMTP (CPAN RT#93823) [4]' \
+    'RHEL Patch42: Do not overload ".." in Math::BigInt (CPAN RT#80182)' \
+    'RHEL Patch43: Fix CVE-2018-18311 Integer overflow leading to buffer overflow' \
     %{nil}
 %endif
 
@@ -2758,40 +2730,6 @@ sed \
 # Params-Check
 %exclude %{privlib}/Params/
 %exclude %{_mandir}/man3/Params::Check*
-
-# Perl4-CoreLibs
-%exclude %{privlib}/abbrev.pl
-%exclude %{privlib}/assert.pl
-%exclude %{privlib}/bigfloat.pl
-%exclude %{privlib}/bigint.pl
-%exclude %{privlib}/bigrat.pl
-%exclude %{privlib}/cacheout.pl
-%exclude %{privlib}/complete.pl
-%exclude %{privlib}/ctime.pl
-%exclude %{privlib}/dotsh.pl
-%exclude %{privlib}/exceptions.pl
-%exclude %{privlib}/fastcwd.pl
-%exclude %{privlib}/find.pl
-%exclude %{privlib}/finddepth.pl
-%exclude %{privlib}/flush.pl
-%exclude %{privlib}/getcwd.pl
-%exclude %{privlib}/getopt.pl
-%exclude %{privlib}/getopts.pl
-%exclude %{privlib}/hostname.pl
-%exclude %{privlib}/importenv.pl
-%exclude %{privlib}/look.pl
-%exclude %{privlib}/newgetopt.pl
-%exclude %{privlib}/open2.pl
-%exclude %{privlib}/open3.pl
-%exclude %{privlib}/pwd.pl
-%exclude %{privlib}/shellwords.pl
-%exclude %{privlib}/stat.pl
-%exclude %{privlib}/syslog.pl
-%exclude %{privlib}/tainted.pl
-%exclude %{privlib}/termcap.pl
-%exclude %{privlib}/timelocal.pl
-%exclude %{privlib}/validate.pl
-
 
 # Perl-OSType
 %exclude %{privlib}/Perl/OSType.pm
@@ -3528,39 +3466,6 @@ sed \
 %{_mandir}/man3/Parse::CPAN::Meta.3*
 %endif
 
-%files Perl4-CoreLibs
-%{privlib}/abbrev.pl
-%{privlib}/assert.pl
-%{privlib}/bigfloat.pl
-%{privlib}/bigint.pl
-%{privlib}/bigrat.pl
-%{privlib}/cacheout.pl
-%{privlib}/complete.pl
-%{privlib}/ctime.pl
-%{privlib}/dotsh.pl
-%{privlib}/exceptions.pl
-%{privlib}/fastcwd.pl
-%{privlib}/find.pl
-%{privlib}/finddepth.pl
-%{privlib}/flush.pl
-%{privlib}/getcwd.pl
-%{privlib}/getopt.pl
-%{privlib}/getopts.pl
-%{privlib}/hostname.pl
-%{privlib}/importenv.pl
-%{privlib}/look.pl
-%{privlib}/newgetopt.pl
-%{privlib}/open2.pl
-%{privlib}/open3.pl
-%{privlib}/pwd.pl
-%{privlib}/shellwords.pl
-%{privlib}/stat.pl
-%{privlib}/syslog.pl
-%{privlib}/tainted.pl
-%{privlib}/termcap.pl
-%{privlib}/timelocal.pl
-%{privlib}/validate.pl
-
 %if %{dual_life} || %{rebuild_from_scratch}
 %files parent
 %{privlib}/parent.pm
@@ -3803,6 +3708,18 @@ sed \
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Mon Jan 07 2019 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-294
+- Fix CVE-2018-18311 Integer overflow leading to buffer overflow (bug #1661064)
+
+* Wed Mar 21 2018 Petr Pisar <ppisar@redhat.com> - 4:5.16.3-293
+- Add SSL support to Net::SMTP (bug #1557574)
+- Do not overload ".." in Math::BigInt (bug #1497734)
+- Provide perl(:VERSION) and perl-interpreter RPM symbols (bug #1410347)
+
+* Mon Feb 27 2017 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-292
+- Removed perl-Perl4-CoreLibs because it was added as separate package to
+  RHEL (bug #1366724)
+
 * Wed Aug 17 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-291
 - Backported and sub-packaged libraries historically supplied with Perl 4
   into perl-Perl4-CoreLibs

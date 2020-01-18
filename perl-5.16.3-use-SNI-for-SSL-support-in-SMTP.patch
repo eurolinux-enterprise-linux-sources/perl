@@ -1,0 +1,66 @@
+From 5f39e47e30390af4288acf47a6d342874a803cbf Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20P=C3=ADsa=C5=99?= <ppisar@redhat.com>
+Date: Wed, 21 Mar 2018 14:54:07 +0100
+Subject: [PATCH 4/4] use SNI for SSL support in SMTP
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Ported to Net::SMTP as found in Perl 5.16.3 from libnet upstream
+commit:
+
+commit 50c6fd25f2958e6300ec8377ab40c3f1a23bd9fd
+Author: Steffen Ullrich <Steffen_Ullrich@genua.de>
+Date:   Fri Nov 28 11:47:16 2014 +0100
+
+    - model SSL support for Net::NNTP after Net::SMTP, i.e. upgrade to SSL class instead of using IO::Socket::SSL in plain and SSL mode
+    - use SNI for SSL support in SMTP, NNTP, POP3, FTP by default
+
+commit f2756a6b81ebfadbd1ce318879c20b6519207c49
+Author: Steffen Ullrich <Steffen_Ullrich@genua.de>
+Date:   Sat Nov 29 17:13:58 2014 +0100
+
+    SSL support: use SNI only if supported by IO::Socket::SSL (i.e. openssl version>=1)
+
+Other protocols excluded.
+
+Signed-off-by: Petr Písař <ppisar@redhat.com>
+---
+ cpan/libnet/Net/SMTP.pm | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/cpan/libnet/Net/SMTP.pm b/cpan/libnet/Net/SMTP.pm
+index 6475c86..d207c3c 100644
+--- a/cpan/libnet/Net/SMTP.pm
++++ b/cpan/libnet/Net/SMTP.pm
+@@ -71,8 +71,9 @@ sub new {
+     unless defined $obj;
+ 
+   ${*$obj}{'net_smtp_arg'} = \%arg;
++  ${*$obj}{'net_smtp_host'} = $host;
+   if ($arg{SSL}) {
+-    Net::SMTP::_SSL->start_SSL($obj,SSL_verifycn_name => $host,%arg)
++    Net::SMTP::_SSL->start_SSL($obj,%arg)
+       or return;
+   }
+ 
+@@ -86,7 +87,6 @@ sub new {
+   }
+ 
+   ${*$obj}{'net_smtp_exact_addr'} = $arg{ExactAddresses};
+-  ${*$obj}{'net_smtp_host'}       = $host;
+ 
+   (${*$obj}{'net_smtp_banner'}) = $obj->message;
+   (${*$obj}{'net_smtp_domain'}) = $obj->message =~ /\A\s*(\S+)/;
+@@ -575,6 +575,8 @@ sub _STARTTLS { shift->command("STARTTLS", @_)->response() == CMD_OK }
+     delete @arg{ grep { !m{^SSL_} } keys %arg };
+     ( $arg{SSL_verifycn_name} ||= $smtp->host )
+ 	=~s{(?<!:):[\w()]+$}{}; # strip port
++    $arg{SSL_hostname} = $arg{SSL_verifycn_name}
++       if ! defined $arg{SSL_hostname} && $class->can_client_sni;
+     $arg{SSL_verifycn_scheme} ||= 'smtp';
+     $arg{SSL_verify_mode} ||= IO::Socket::SSL::SSL_VERIFY_PEER();
+     my $ok = $class->SUPER::start_SSL($smtp,%arg);
+-- 
+2.14.3
+
