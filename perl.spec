@@ -31,7 +31,7 @@
 Name:           perl
 Version:        %{perl_version}
 # release number must be even higher, because dual-lived modules will be broken otherwise
-Release:        292%{?dist}
+Release:        293%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -165,6 +165,16 @@ Patch36:        perl-5.20.3-Don-t-leak-the-temp-utf8-copy-of-n.patch
 # RT#31923, in upstream after 5.23.3
 Patch37:        perl-5.16.3-Properly-duplicate-PerlIO-encoding-objects.patch
 
+# Add SSL support to Net::SMTP, bug #1557574, CPAN RT#93823
+Patch38:        perl-5.16.3-SSL-support-for-Net-SMTP.patch
+Patch39:        perl-5.16.3-added-tests-for-Net-SMTP-SSL-save-arguments-in-Net-S.patch
+Patch40:        perl-5.16.3-Fix-PAUSE-indexing-problem.patch
+Patch41:        perl-5.16.3-use-SNI-for-SSL-support-in-SMTP.patch
+
+# Do not overload ".." in Math::BigInt, bug #1497734, CPAN RT#80182,
+# fixed in Math-BigInt-1.999718
+Patch42:        perl-5.16.3-Fix-Math-BigInt-overload-warning.patch
+
 # Update some of the bundled modules
 # see http://fedoraproject.org/wiki/Perl/perl.spec for instructions
 
@@ -182,6 +192,11 @@ BuildRequires:  procps, rsyslog
 
 # compat macro needed for rebuild
 %global perl_compat perl(:MODULE_COMPAT_5.16.3)
+
+# perl-interpreter denotes a package with the perl executable.
+# Full EVR is for compatibility with systems that swapped perl and perl-core
+# <https://fedoraproject.org/wiki/Changes/perl_Package_to_Install_Core_Modules>.
+Provides: perl-interpreter = %{perl_epoch}:%{perl_version}-%{release}
 
 # Compat provides
 Provides: %perl_compat
@@ -234,6 +249,8 @@ handle Perl scripts.
 Summary:        The libraries for the perl runtime
 Group:          Development/Languages
 License:        GPL+ or Artistic
+# Interpreter version to fulfil requires based on "require 5.006;"
+Provides:       perl(:VERSION) = %{perl_version}
 Requires:       %perl_compat
 
 %description libs
@@ -1954,6 +1971,11 @@ tarball from perl.org.
 %patch35 -p1
 %patch36 -p1
 %patch37 -p1
+%patch38 -p1
+%patch39 -p1
+%patch40 -p1
+%patch41 -p1
+%patch42 -p1
 
 %if !%{defined perl_bootstrap}
 # Local patch tracking
@@ -1993,6 +2015,11 @@ perl -x patchlevel.h \
     'RHEL Patch35: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
     'RHEL Patch36: Do not leak the temp utf8 copy of namepv (CPAN RT#123786)' \
     'RHEL Patch37: Fix duplicating PerlIO::encoding when spawning threads (RT#31923)' \
+    'RHEL Patch38: Add SSL support to Net::SMTP (CPAN RT#93823) [1]' \
+    'RHEL Patch39: Add SSL support to Net::SMTP (CPAN RT#93823) [2]' \
+    'RHEL Patch40: Add SSL support to Net::SMTP (CPAN RT#93823) [3]' \
+    'RHEL Patch41: Add SSL support to Net::SMTP (CPAN RT#93823) [4]' \
+    'RHEL Patch42: Do not overload ".." in Math::BigInt (CPAN RT#80182)' \
     %{nil}
 %endif
 
@@ -3675,6 +3702,11 @@ sed \
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Wed Mar 21 2018 Petr Pisar <ppisar@redhat.com> - 4:5.16.3-293
+- Add SSL support to Net::SMTP (bug #1557574)
+- Do not overload ".." in Math::BigInt (bug #1497734)
+- Provide perl(:VERSION) and perl-interpreter RPM symbols (bug #1410347)
+
 * Mon Feb 27 2017 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-292
 - Removed perl-Perl4-CoreLibs because it was added as separate package to
   RHEL (bug #1366724)
