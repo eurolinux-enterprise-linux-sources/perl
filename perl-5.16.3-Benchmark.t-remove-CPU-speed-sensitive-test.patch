@@ -1,0 +1,73 @@
+From 49bc120dcaeb68e2a870e7d92cf3f217e3487fe5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20P=C3=ADsa=C5=99?= <ppisar@redhat.com>
+Date: Thu, 2 Jul 2015 11:15:28 +0200
+Subject: [PATCH] Benchmark.t: remove CPU-speed-sensitive test
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This is upstream commit ported to 5.16.3:
+
+commit 9eba9e102c2f8c2ec41a50f4bbe6b09a64dddd31
+Author: David Mitchell <davem@iabyn.com>
+Date:   Fri Jul 19 23:10:50 2013 +0100
+
+    Benchmark.t: remove CPU-speed-sensitive test
+
+    Benchmark.t has been randomly failing test 15 in smokes for ages.
+    This is the one that checks that a loop run 3*N times burns approximately
+    3 times more CPU than when run just N times.
+
+    For the last month the test has included a calibration loop and test,
+    which does much the same thing, but without using any code from
+    Benchmark.pm. This has failed just as much, which confirms that its an
+    issue with the smoke host (such as a variable speed CPU or whatever),
+    rather than any flaw in the Benchmark.pm library logic.
+
+    So just remove the calibration loop and the dodgy test.
+
+Signed-off-by: Petr Písař <ppisar@redhat.com>
+---
+ lib/Benchmark.t | 19 +------------------
+ 1 file changed, 1 insertion(+), 18 deletions(-)
+
+diff --git a/lib/Benchmark.t b/lib/Benchmark.t
+index 004092e..62bc1a6 100644
+--- a/lib/Benchmark.t
++++ b/lib/Benchmark.t
+@@ -8,7 +8,7 @@ BEGIN {
+ use warnings;
+ use strict;
+ use vars qw($foo $bar $baz $ballast);
+-use Test::More tests => 196;
++use Test::More tests => 195;
+ 
+ use Benchmark qw(:all);
+ 
+@@ -86,23 +86,6 @@ my $in_onesec_adj = $in_onesec;
+ $in_onesec_adj *= (1/$cpu1); # adjust because may not have run for exactly 1s
+ print "# in_onesec_adj=$in_onesec_adj adjusted iterations\n";
+ 
+-{
+-  my $difference = $in_onesec_adj - $estimate;
+-  my $actual = abs ($difference / $in_onesec_adj);
+-  cmp_ok($actual, '<=', $delta, "is $in_onesec_adj within $delta of estimate ($estimate)")
+-    or do {
+-	diag("  in_threesecs     = $in_threesecs");
+-	diag("  in_threesecs_adj = $in_threesecs_adj");
+-	diag("  cpu3             = $cpu3");
+-	diag("  sys3             = $sys3");
+-	diag("  estimate         = $estimate");
+-	diag("  in_onesec        = $in_onesec");
+-	diag("  in_onesec_adj    = $in_onesec_adj");
+-	diag("  cpu1             = $cpu1");
+-	diag("  sys1             = $sys1");
+-    };
+-}
+-
+ # I found that the eval'ed version was 3 times faster than the coderef.
+ # (now it has a different ballast value)
+ $baz = 0;
+-- 
+2.4.3
+
