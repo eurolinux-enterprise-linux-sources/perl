@@ -31,7 +31,7 @@
 Name:           perl
 Version:        %{perl_version}
 # release number must be even higher, because dual-lived modules will be broken otherwise
-Release:        291%{?dist}
+Release:        292%{?dist}
 Epoch:          %{perl_epoch}
 Summary:        Practical Extraction and Report Language
 Group:          Development/Languages
@@ -164,10 +164,6 @@ Patch36:        perl-5.20.3-Don-t-leak-the-temp-utf8-copy-of-n.patch
 # Fix duplicating PerlIO::encoding when spawning threads, bug #1344749,
 # RT#31923, in upstream after 5.23.3
 Patch37:        perl-5.16.3-Properly-duplicate-PerlIO-encoding-objects.patch
-
-# Backported libraries historically supplied with Perl 4 from Perl 5.10.1.
-# It is used as a workaround before adding perl-Perl4-CoreLibs to RHEL 7
-Patch38:        Backport-Perl4-CoreLibs.patch
 
 # Update some of the bundled modules
 # see http://fedoraproject.org/wiki/Perl/perl.spec for instructions
@@ -1376,61 +1372,6 @@ Parse::CPAN::Meta is a parser for META.yml files, based on the parser half of
 YAML::Tiny.
 %endif
 
-%package Perl4-CoreLibs
-Summary:        Libraries historically supplied with Perl 4
-Version:        0.001
-Epoch:          0
-License:        GPL+ or Artistic
-Group:          Development/Libraries
-BuildArch:      noarch
-Requires:       %perl_compat
-Requires:       perl(File::Find)
-Requires:       perl(IPC::Open2)
-Requires:       perl(IPC::Open3)
-Requires:       perl(Socket)
-Requires:       perl(Text::ParseWords) >= 3.25
-Requires:       perl(Time::Local)
-Requires:       perl(warnings::register)
-Provides:       perl(abbrev.pl)
-Provides:       perl(assert.pl)
-Provides:       perl(bigfloat.pl)
-Provides:       perl(bigint.pl)
-Provides:       perl(bigrat.pl)
-Provides:       perl(cacheout.pl)
-Provides:       perl(complete.pl)
-Provides:       perl(ctime.pl)
-Provides:       perl(dotsh.pl)
-Provides:       perl(exceptions.pl)
-Provides:       perl(fastcwd.pl)
-Provides:       perl(find.pl)
-Provides:       perl(finddepth.pl)
-Provides:       perl(flush.pl)
-Provides:       perl(getcwd.pl)
-Provides:       perl(getopt.pl)
-Provides:       perl(getopts.pl)
-Provides:       perl(hostname.pl)
-Provides:       perl(importenv.pl)
-Provides:       perl(look.pl)
-Provides:       perl(newgetopt.pl)
-Provides:       perl(open2.pl)
-Provides:       perl(open3.pl)
-Provides:       perl(pwd.pl)
-Provides:       perl(shellwords.pl)
-Provides:       perl(stat.pl)
-Provides:       perl(syslog.pl)
-Provides:       perl(tainted.pl)
-Provides:       perl(termcap.pl)
-Provides:       perl(timelocal.pl)
-Provides:       perl(validate.pl)
-
-%description Perl4-CoreLibs
-This is a collection of .pl files that have historically been bundled with the
-Perl core and were removed from perl 5.16.  These files should not be used by
-new code.  Functionally, most have been directly superseded by modules in the
-Perl 5 style. This collection exists to support old Perl programs that
-predates satisfactory replacements.
-
-
 %if %{dual_life} || %{rebuild_from_scratch}
 %package Perl-OSType
 Summary:        Map Perl operating system names to generic types
@@ -2013,7 +1954,6 @@ tarball from perl.org.
 %patch35 -p1
 %patch36 -p1
 %patch37 -p1
-%patch38 -p1
 
 %if !%{defined perl_bootstrap}
 # Local patch tracking
@@ -2053,7 +1993,6 @@ perl -x patchlevel.h \
     'RHEL Patch35: Fix CRLF conversion in ASCII FTP upload (CPAN RT#41642)' \
     'RHEL Patch36: Do not leak the temp utf8 copy of namepv (CPAN RT#123786)' \
     'RHEL Patch37: Fix duplicating PerlIO::encoding when spawning threads (RT#31923)' \
-    'RHEL Patch38: Backported libraries historically supplied with Perl 4' \
     %{nil}
 %endif
 
@@ -2758,40 +2697,6 @@ sed \
 # Params-Check
 %exclude %{privlib}/Params/
 %exclude %{_mandir}/man3/Params::Check*
-
-# Perl4-CoreLibs
-%exclude %{privlib}/abbrev.pl
-%exclude %{privlib}/assert.pl
-%exclude %{privlib}/bigfloat.pl
-%exclude %{privlib}/bigint.pl
-%exclude %{privlib}/bigrat.pl
-%exclude %{privlib}/cacheout.pl
-%exclude %{privlib}/complete.pl
-%exclude %{privlib}/ctime.pl
-%exclude %{privlib}/dotsh.pl
-%exclude %{privlib}/exceptions.pl
-%exclude %{privlib}/fastcwd.pl
-%exclude %{privlib}/find.pl
-%exclude %{privlib}/finddepth.pl
-%exclude %{privlib}/flush.pl
-%exclude %{privlib}/getcwd.pl
-%exclude %{privlib}/getopt.pl
-%exclude %{privlib}/getopts.pl
-%exclude %{privlib}/hostname.pl
-%exclude %{privlib}/importenv.pl
-%exclude %{privlib}/look.pl
-%exclude %{privlib}/newgetopt.pl
-%exclude %{privlib}/open2.pl
-%exclude %{privlib}/open3.pl
-%exclude %{privlib}/pwd.pl
-%exclude %{privlib}/shellwords.pl
-%exclude %{privlib}/stat.pl
-%exclude %{privlib}/syslog.pl
-%exclude %{privlib}/tainted.pl
-%exclude %{privlib}/termcap.pl
-%exclude %{privlib}/timelocal.pl
-%exclude %{privlib}/validate.pl
-
 
 # Perl-OSType
 %exclude %{privlib}/Perl/OSType.pm
@@ -3528,39 +3433,6 @@ sed \
 %{_mandir}/man3/Parse::CPAN::Meta.3*
 %endif
 
-%files Perl4-CoreLibs
-%{privlib}/abbrev.pl
-%{privlib}/assert.pl
-%{privlib}/bigfloat.pl
-%{privlib}/bigint.pl
-%{privlib}/bigrat.pl
-%{privlib}/cacheout.pl
-%{privlib}/complete.pl
-%{privlib}/ctime.pl
-%{privlib}/dotsh.pl
-%{privlib}/exceptions.pl
-%{privlib}/fastcwd.pl
-%{privlib}/find.pl
-%{privlib}/finddepth.pl
-%{privlib}/flush.pl
-%{privlib}/getcwd.pl
-%{privlib}/getopt.pl
-%{privlib}/getopts.pl
-%{privlib}/hostname.pl
-%{privlib}/importenv.pl
-%{privlib}/look.pl
-%{privlib}/newgetopt.pl
-%{privlib}/open2.pl
-%{privlib}/open3.pl
-%{privlib}/pwd.pl
-%{privlib}/shellwords.pl
-%{privlib}/stat.pl
-%{privlib}/syslog.pl
-%{privlib}/tainted.pl
-%{privlib}/termcap.pl
-%{privlib}/timelocal.pl
-%{privlib}/validate.pl
-
 %if %{dual_life} || %{rebuild_from_scratch}
 %files parent
 %{privlib}/parent.pm
@@ -3803,6 +3675,10 @@ sed \
 
 # Old changelog entries are preserved in CVS.
 %changelog
+* Mon Feb 27 2017 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-292
+- Removed perl-Perl4-CoreLibs because it was added as separate package to
+  RHEL (bug #1366724)
+
 * Wed Aug 17 2016 Jitka Plesnikova <jplesnik@redhat.com> - 4:5.16.3-291
 - Backported and sub-packaged libraries historically supplied with Perl 4
   into perl-Perl4-CoreLibs
